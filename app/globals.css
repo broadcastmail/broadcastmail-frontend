@@ -1,26 +1,46 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: #08080a;
+  --color-surface: #0c0c0f;
+  --color-border: rgba(255, 255, 255, 0.09);
+  --color-text-primary: #ececf1;
+  --color-text-muted: #7a7a85;
+  --color-text-dim: #5c5c66;
+  --color-orange: #f0973f;
+  --color-orange-hover: #ffb067;
+  --color-status-resolving: #f0973f;
+  --color-status-sending: #7aa2ff;
+  --color-status-sent: #4ade80;
+  --color-status-failed: #e5726a;
+  --color-status-draft: #8e8e9a;
+  --color-status-resolving-bg: rgba(240, 151, 63, 0.13);
+  --color-status-sending-bg: rgba(122, 162, 255, 0.13);
+  --color-status-sent-bg: rgba(74, 222, 128, 0.11);
+  --color-status-failed-bg: rgba(229, 114, 106, 0.14);
+  --color-status-draft-bg: rgba(255, 255, 255, 0.06);
+  --color-card: rgba(255, 255, 255, 0.035);
+  --color-dialog: #111116;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
-}
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  --animate-bmpulse: bmpulse 2s ease-in-out infinite;
+
+  @keyframes bmpulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.6;
+    }
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  background-image: radial-gradient(circle, #141419 1px, transparent 1px);
+  background-size: 24px 24px;
+  color: var(--color-text-primary);
+  font-family: var(--font-sans);
 }
