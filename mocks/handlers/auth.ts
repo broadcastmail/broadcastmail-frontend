@@ -1,22 +1,14 @@
 import { http, HttpResponse } from "msw";
+import { SESSION_COOKIE, hasCookie, clearCookie } from "../session";
 
-// Mirrors the real backend's httpOnly session cookie (apiClient uses
-// withCredentials: true): a cookie decides auth state, same as production.
-// Inverted from a real session cookie for dev convenience — you start
-// authenticated with no setup, and *signing out* is what sets a cookie —
-// so a cold load never needs a client-side seed step to show the dashboard.
-export const SIGNED_OUT_COOKIE = "bm_mock_signed_out";
-
-function isSignedOut(request: Request): boolean {
-  const cookie = request.headers.get("cookie") ?? "";
-  return cookie
-    .split(";")
-    .some((c) => c.trim().startsWith(`${SIGNED_OUT_COOKIE}=`));
-}
-
+// Cookie presence = authenticated, same as the real httpOnly session cookie
+// (apiClient uses withCredentials: true). No auto-login here anymore — now
+// that /api/v1/oauth/supabase/authorize actually sets SESSION_COOKIE, "am I
+// logged in" is a real question you answer by going through that flow (see
+// the "Connect Supabase" button), not a dev-convenience default.
 export const authHandlers = [
   http.get("*/api/v1/me", ({ request }) => {
-    if (isSignedOut(request)) {
+    if (!hasCookie(request, SESSION_COOKIE)) {
       return new HttpResponse(null, { status: 401 });
     }
     return HttpResponse.json({
@@ -27,19 +19,7 @@ export const authHandlers = [
   }),
 
   http.post("*/api/v1/auth/logout", () => {
-    // Set-Cookie response headers are stripped by the Fetch API spec even
-    // from mocked responses, so set it directly (browser-only; the Node SSR
-    // mock never sets cookies itself, it just reads what the browser sent).
-    if (typeof document !== "undefined") {
-      document.cookie = `${SIGNED_OUT_COOKIE}=1; Path=/`;
-    }
-    return new HttpResponse(null, { status: 204 });
-  }),
-
-  http.post("*/api/v1/auth/login", () => {
-    if (typeof document !== "undefined") {
-      document.cookie = `${SIGNED_OUT_COOKIE}=; Path=/; Max-Age=0`;
-    }
+    clearCookie(SESSION_COOKIE);
     return new HttpResponse(null, { status: 204 });
   }),
 ];
