@@ -25,6 +25,7 @@
   --font-mono: var(--font-geist-mono);
 
   --animate-bmpulse: bmpulse 2s ease-in-out infinite;
+  --animate-bmspin: bmspin 0.75s linear infinite;
 
   @keyframes bmpulse {
     0%,
@@ -33,6 +34,12 @@
     }
     50% {
       opacity: 0.6;
+    }
+  }
+
+  @keyframes bmspin {
+    to {
+      transform: rotate(360deg);
     }
   }
 }

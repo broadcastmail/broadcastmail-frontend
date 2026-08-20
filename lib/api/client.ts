@@ -7,7 +7,8 @@ const isServer = typeof window === "undefined";
 
 export const apiClient = axios.create({
   baseURL:
-    process.env.NEXT_PUBLIC_API_URL ??
-    (isServer ? "http://localhost:3000" : ""),
+    typeof window === "undefined"
+      ? process.env.NEXT_PUBLIC_API_URL // server-side: use real URL
+      : "", // client-side: relative URLs for MSW
   withCredentials: true,
 });

@@ -14,7 +14,7 @@ import {
 import { useState } from "react";
 
 const NAV_ITEMS = [
-  { href: "/", label: "Campaigns", icon: <Mail size={14} /> },
+  { href: "/dashboard", label: "Campaigns", icon: <Mail size={14} /> },
   { href: "/settings", label: "Settings", icon: <Settings size={14} /> },
   { href: "/billing", label: "Billing", icon: <CreditCard size={14} /> },
 ];
@@ -87,9 +87,9 @@ function UserMenu({ email }: { email: string }) {
 
   async function handleLogout() {
     await apiClient.post("/api/v1/auth/logout");
-    // Already on "/" — refresh so the root Server Component re-checks auth
-    // against the now-cleared cookie and swaps in the landing page.
-    router.refresh();
+    // Leaving "/dashboard" entirely — its layout would just redirect back
+    // to "/" anyway once the session cookie is gone, so go there directly.
+    router.push("/");
   }
 
   return (
