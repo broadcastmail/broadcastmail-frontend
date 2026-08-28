@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { DashboardHero } from "./dashboard-hero";
 import { CampaignSection } from "./campaign-section";
 import { apiClient } from "@/lib/api/client";
@@ -45,7 +46,10 @@ export async function DashboardContent() {
             Send to segments of your Supabase users.
           </p>
         </div>
-        <button className="flex items-center gap-[7px] bg-orange hover:bg-orange-hover text-[#120C06] text-[13.5px] font-semibold rounded-lg px-4 py-[10px] cursor-pointer transition-colors whitespace-nowrap">
+        <Link
+          href="/dashboard/campaigns/new"
+          className="flex items-center gap-1.75 bg-orange hover:bg-orange-hover text-[#120C06] text-[13.5px] font-semibold rounded-lg px-4 py-2.5 transition-colors whitespace-nowrap"
+        >
           <svg width="13" height="13" viewBox="0 0 14 14">
             <path
               d="M7 2v10M2 7h10"
@@ -55,7 +59,7 @@ export async function DashboardContent() {
             />
           </svg>
           New campaign
-        </button>
+        </Link>
       </header>
       {metrics && (
         <DashboardHero
