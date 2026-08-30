@@ -1,0 +1,168 @@
+USER: Heyyy i Have html that i wanna tarsnfer to next components. I want stracture to follow structure of daboard. this means i want onborarding inside ap pto just hold necessary files and otehr files to go to components folder and subfolder onboarding. U already have some components taht will need revision to be exactly liek in html file. Also in the ned tell me which enpoints am i still msiing.
+---
+USER: [Request interrupted by user]
+---
+USER:  Heyyy i Have html that i wanna tarsnfer to next components. I want stracture to follow structure of daboard. this means i want onborarding inside ap pto just hold necessary files and otehr files to go to components folder and subfolder onboarding. U already have some components taht will need revision to be exactly liek in html file. Also in the ned tell me which enpoints am i still msiing. Only shadcn components i wanna sue for this additioanly are checkbox and select wit hsame style as in htm
+---
+ASSISTANT: Got the full picture — HTML mockup, existing dashboard structure, existing (partial) onboarding routes, and the mocked backend contract (`mocks/handlers/oauth.ts`, `onboarding.ts`). Before I build ~15 files, a couple of structural calls that are yours to make:
+---
+ASSISTANT: What would you like to clarify?
+---
+USER:   private String frontendUrl;
+
+    @PostMapping("/email-provider")
+    public ResponseEntity<Void> addEmailProvider(
+            @CookieValue(name = "onboarding_session", required = false) String sessionToken,
+            @RequestBody @Valid EmailProviderRequest request) {
+        emailProviderService.addEmailProvider(
+                sessionToken,
+                request.apiKey(),
+                request.fromAddress()
+        );
+        return ResponseEntity.ok().build();
+    }
+
+    @PostMappin
+---
+ASSISTANT: This backend contract changes things a lot — thanks. A few things I now need to nail down before I touch files, since guessing wrong on response shapes means rework:
+---
+ASSISTANT: Great — waiting on that DTO paste. Also, for the SQL review/fallback screens: since no endpoint backs them, what should the action buttons do?
+
+- **"Run setup"** (review screen) — just a client-only fake delay then advance to CONNECT_RESEND step? Or should it call `POST /schema/confirm` at that point (i.e., that's where schema confirmation actually happens)?
+- **"I've run it — test connection"** (fallback screen) — same question, and what triggers showing the fallback screen at all if there's no real "SQL failed" signal from the backend?
+---
+USER: public record SchemaIntrospectionResult(
+        String userTableName,
+        String userTableSchema,
+        String emailColumn,
+        String userIdColumn,
+        List<DetectedColumn> filterableColumns
+) {
+}
+---
+ASSISTANT: Got it. Two more things:
+
+1. What's the `DetectedColumn` record shape (fields for name/type/warning flag)?
+2. Still need the answer on what **"Run setup"** and **"I've run it — test connection"** should actually do, since no endpoint backs them (does "Run setup" call `POST /schema/confirm`? does anything ever trigger the fallback screen, or is it dead/unreachable in the real flow?).
+---
+USER: public record DetectedColumn(
+        String columnName,
+        String columnType,
+        boolean enabled,
+        Integer cardinality,
+        boolean cardinalityWarning) {
+}
+---
+ASSISTANT: Thanks. Still need your call on the SQL review/fallback screens' button behavior — since no endpoint backs them:
+
+- **"Run setup"**: fake delay then advance, or does it actually call `POST /schema/confirm` at that point?
+- **"I've run it — test connection"** (fallback): what triggers this screen at all in your real flow, and what should its button do?
+---
+USER: This calls POST /api/v1/onboarding/schema/confirm — not a fake delay. The backend:
+
+Takes the schema selection from the onboarding session
+Executes the SQL against the user's Supabase via the Management API
+If success → marks session as schema confirmed, returns 200
+If fail → returns an error that triggers the fallback screen
+
+So "Run setup" = real API call. The delay in the mock should simulate a real async operation.
+
+Fallback screen
+
+It appears when POST /api/v1/onboarding/schema/confirm fail
+---
+ASSISTANT: Two real gaps before I build the email-provider step:
+---
+ASSISTANT: Now I have everything I need. Let me build this out, starting with types and the API layer.
+---
+ASSISTANT: Let me revise the schema flow to keep the mockup's two-step structure (column picker → separate SQL review screen) more faithfully rather than collapsing them.
+---
+ASSISTANT: Now the bare `/onboarding` index dispatcher:
+---
+ASSISTANT: Good, no changes needed there. Now let's update `mocks/session.ts` with the new progression cookies:
+---
+ASSISTANT: Now the oauth handler needs to persist which project was picked (for the recap on the confirm screen):
+---
+ASSISTANT: Now let's verify everything compiles:
+---
+ASSISTANT: Clean. Let's also lint:
+---
+ASSISTANT: Pre-existing warnings, nothing from my changes. Let me do a final read-through of the schema flow to make sure the edits landed cleanly:
+---
+ASSISTANT: This all looks solid. Let me check the final file tree and git status:
+---
+ASSISTANT: Structure is exactly what you asked for: `app/onboarding/**` holds only thin `page.tsx` route/gate files, everything real lives under `components/onboarding/**`. Type-check and lint are clean.
+
+## What I built
+
+**Routes** (`app/onboarding/`) — each is a server component that calls `GET /onboarding/status` and `redirect()`s away if the step doesn't match:
+- `page.tsx` — bare `/onboarding` resume dispatcher
+- `select-project/page.tsx` — unchanged shape, now renders the restyled component
+- `schema/page.tsx` **(new)** — gated on `CONFIRM_SCHEMA`
+- `email-provider/page.tsx` — rebuilt for real, gated on `CONNECT_RESEND`
+- `confirm/page.tsx` **(new)** — gated on `CONFIRM_ACCOUNT`
+
+**Components** (
+---
+USER: next js page doesnt compile
+---
+ASSISTANT: I'll split the pure constant out of `lib/api/onboarding.ts` so client components don't drag in `next/headers`.
+---
+ASSISTANT: Now update the two client components to import the constant from the pure module instead:
+---
+ASSISTANT: Good, the file is clean now — that diagnostic was stale. Now update all the import sites to pull `ONBOARDING_STEP_PATH` from the new pure module:
+---
+ASSISTANT: Now fix all 6 files (4 server pages + 2 client components):
+---
+ASSISTANT: That's confirm/page.tsx's stale diagnostic. Fixing it now:
+---
+ASSISTANT: Now the two client components:
+---
+ASSISTANT: Now let's rebuild to confirm this actually fixes it:
+---
+ASSISTANT: Build's clean now — production build compiles, all routes register correctly, no TypeScript errors.
+
+**Root cause:** `lib/api/onboarding.ts` mixed a client-safe constant (`ONBOARDING_STEP_PATH`) with server-only fetchers that import `next/headers` (via `forwardedCookieHeader`). The two client components (`schema-flow.tsx`, `email-provider-form.tsx`) imported the constant from that same module, so Turbopack pulled the entire `next/headers`-dependent module graph into the client bundle — which Next.js rejects outright.
+
+**Fix:** split the pure constant into `lib/onboarding-steps.ts` (no server-only imports), and pointed every consumer — the 4 server pages and both client components — at that i
+---
+USER: and how do i run now onboarding flow with mocks?
+---
+ASSISTANT: Since MSW is already wired for both sides in dev mode, there's nothing extra to configure — no separate mock server to start.
+
+## How it's wired
+
+- **`instrumentation.ts`** starts the Node MSW server automatically when `NODE_ENV=development` (covers your server-component `fetch`/`axios` calls, e.g. `getOnboardingStatus`).
+- **`MSWProvider`** (in `app/layout.tsx`) starts the browser Service Worker the same way (covers client-side calls like the Resend form submit).
+
+Both only activate in dev — so:
+
+```
+npm run dev
+```
+
+then open `http://localhost:3000`.
+
+## Walking the flow
+
+1. Click **Connect Supabase** on `/`. With no cookies set, the mock resolves the "single project" outcome → lands on `/
+---
+USER: i want landing to add multiple projects by default, aslo missing first screen from html also loading states missing
+---
+ASSISTANT: Let me look at the current landing content once more, then build all three pieces: the missing "connect" screen (matching the HTML mock), default-to-multi-project in dev, and loading states.
+---
+ASSISTANT: Now update `landing-content.tsx` to just render the shell + connect card:
+---
+ASSISTANT: Now let's add route-level loading states (Next.js `loading.tsx` — shown automatically during the server redirect/data-fetch chains between onboarding steps):
+---
+ASSISTANT: Let me also tighten the loading state inside `SelectProjectFlow`, which currently just shows plain text while fetching:
+---
+ASSISTANT: Clean. Let's also do a full production build to be safe (`loading.tsx` + moved landing content can trip up SSR boundaries in subtle ways):
+---
+ASSISTANT: Build's clean. Here's what changed:
+
+## 1. Landing defaults to multiple projects in dev
+`ConnectCard.handleConnect` now hits `/api/v1/oauth/supabase/authorize?projects=multi` in dev — clicking Connect on `/` now takes you straight to the select-project screen instead of the single-project shortcut. Drop the query param there if you want to test the single-project branch instead.
+
+## 2. Missing first screen built
+The "Connect your Supabase project" card from the mock didn't exist — the landing page was just a bare centered button. Added `components/onboarding/connect/connect-card.tsx`: same `OnboardingShell` card chrome as the rest of the flow, the heading/description copy, the permission bul

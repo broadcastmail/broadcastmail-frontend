@@ -26,6 +26,11 @@ export async function createCampaign(
   return res.data;
 }
 
+export async function getCampaign(id: string): Promise<Campaign> {
+  const res = await apiClient.get<Campaign>(`/api/v1/campaigns/${id}`);
+  return res.data;
+}
+
 export async function updateCampaign(
   id: string,
   payload: Partial<CreateCampaignPayload>,

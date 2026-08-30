@@ -10,7 +10,8 @@
 
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
-import { Node, mergeAttributes } from "@tiptap/core";
+import StarterKit from "@tiptap/starter-kit";
+import { Node, mergeAttributes, generateHTML, type JSONContent } from "@tiptap/core";
 import { sanitizeUrl } from "@/lib/campaigns/email-html";
 
 // Same http(s)-only allowlist the rest of the composer already uses
@@ -137,3 +138,42 @@ export const CtaButton = Node.create({
     ];
   },
 });
+
+// The exact extension set RichTextSurface's editor runs — factored out so
+// anywhere that needs to read/produce this schema's HTML outside a mounted
+// editor (see jsonToHtml below, used to seed a resumed draft's preview
+// before the editor mounts) can't drift out of sync with what the editor
+// actually renders.
+export const EMAIL_EDITOR_EXTENSIONS = [
+  StarterKit.configure({
+    blockquote: false,
+    codeBlock: false,
+    code: false,
+    strike: false,
+    link: false, // replaced by EmailLink above (adds URL re-validation)
+    heading: { levels: [1, 2, 3] },
+  }),
+  EmailLink,
+  EmailImage,
+  CtaButton,
+];
+
+// The doc a brand-new visual-mode draft starts from — same shape the
+// various `?? { type: "doc", content: [] }` fallbacks used before this was
+// factored out, named here so "new campaign" and "empty editor" agree on
+// one definition.
+export const EMPTY_DOC: JSONContent = { type: "doc", content: [] };
+
+// Headless JSON → HTML, run outside a mounted editor — used only to seed a
+// resumed draft's initial HTML (for the preview/warnings that need a string
+// before the editor mounts). Never used for the HTML *import* path: that's
+// someone else's markup being parsed against this schema and would be lossy
+// by design (see html-import-editor.tsx); this is the opposite direction —
+// HTML the schema itself already produced, round-tripped losslessly.
+export function jsonToHtml(json: JSONContent): string {
+  try {
+    return generateHTML(json, EMAIL_EDITOR_EXTENSIONS);
+  } catch {
+    return "";
+  }
+}

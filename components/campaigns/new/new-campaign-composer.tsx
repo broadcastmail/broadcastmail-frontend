@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CampaignHeader } from "./campaign-header";
 import { SubjectField } from "./subject-field";
@@ -8,9 +8,13 @@ import { EmailEditor, type EmailBody } from "./editor/email-editor";
 import { HtmlImportEditor } from "./editor/html-import-editor";
 import { AudienceFilters } from "./audience-filters";
 import { PreviewPane } from "./preview-pane";
-import { createCampaign, confirmCampaign } from "@/lib/api/campaigns";
+import { SendingOverlay, type SendStep } from "./sending-overlay";
+import { Spinner } from "@/components/onboarding/spinner";
+import { getCampaign, updateCampaign, confirmCampaign } from "@/lib/api/campaigns";
+import { updateSessionDraft } from "@/lib/campaigns/session-drafts";
 import { wrapEmailShell } from "@/lib/campaigns/email-html";
 import { sanitizeHtmlSource } from "@/lib/campaigns/sanitize-html-source";
+import { EMPTY_DOC, jsonToHtml } from "@/lib/campaigns/editor-extensions";
 import { cn } from "@/lib/utils";
 import {
   estimateRecipientCount,
@@ -18,24 +22,25 @@ import {
   type AudienceFilter,
 } from "@/lib/campaigns/audience";
 
-const SEED_BODY =
-  "<p>Hi there,</p>" +
-  "<p>We shipped <strong>v2.4</strong> this week — inbound webhooks, faster cold starts, and a rewritten logs view.</p>" +
-  '<p><a href="https://example.com/changelog">Read the changelog →</a></p>' +
-  "<p>— The team</p>";
-
 type ContentSource = "visual" | "import";
 
 let filterIdSeq = 0;
 const nextFilterId = () => `filter-${++filterIdSeq}`;
 
-export function NewCampaignComposer() {
+interface NewCampaignComposerProps {
+  /** The DRAFT campaign this composer edits — created blank the moment
+   *  "New campaign" was clicked (see new-campaign-button.tsx), not by this
+   *  component. Everything below patches that existing record; nothing
+   *  here creates a campaign. */
+  campaignId: string;
+}
+
+export function NewCampaignComposer({ campaignId }: NewCampaignComposerProps) {
   const router = useRouter();
 
-  const [name, setName] = useState("Campaign #1");
-  const [subject, setSubject] = useState(
-    "v2.4 is out — webhooks, faster cold starts",
-  );
+  const [loading, setLoading] = useState(true);
+  const [name, setName] = useState("Untitled campaign");
+  const [subject, setSubject] = useState("");
 
   // The two content sources are kept as fully separate state, not one
   // shared `body` string a mode switch converts between — nothing is lost
@@ -45,16 +50,82 @@ export function NewCampaignComposer() {
   // editor/html-import-editor.tsx for why that distinction matters).
   const [source, setSource] = useState<ContentSource>("visual");
   const [visualBody, setVisualBody] = useState<EmailBody>({
-    html: SEED_BODY,
-    json: { type: "doc" },
+    html: "",
+    json: EMPTY_DOC,
   });
   const [importedHtml, setImportedHtml] = useState("");
 
   const [filters, setFilters] = useState<AudienceFilter[]>([]);
   const [counting, setCounting] = useState(false);
   const [recipientCount, setRecipientCount] = useState(TOTAL_AUDIENCE);
-  const [sending, setSending] = useState(false);
+  const [sendStep, setSendStep] = useState<SendStep | null>(null);
   const [sendError, setSendError] = useState(false);
+
+  // Loads the draft this id points to. Runs client-side, not as a
+  // server-fetched prop — see app/dashboard/campaigns/[id]/page.tsx for
+  // why (the draft was created via a client-side POST, so it only exists
+  // in the browser's mock worker). The editor mounts once loading clears,
+  // so it seeds from real data on its one and only mount instead of
+  // needing to be re-hydrated after the fact.
+  useEffect(() => {
+    let cancelled = false;
+    getCampaign(campaignId)
+      .then((campaign) => {
+        if (cancelled) return;
+        setName(campaign.name);
+        setSubject(campaign.subject);
+        setSource(campaign.source);
+        if (campaign.source === "visual" && campaign.bodyJson) {
+          setVisualBody({ html: jsonToHtml(campaign.bodyJson), json: campaign.bodyJson });
+        } else if (campaign.source === "import" && campaign.bodyHtmlImported) {
+          setImportedHtml(campaign.bodyHtmlImported);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [campaignId]);
+
+  // Best-effort autosave: PATCHes the draft a second after edits settle, so
+  // the persisted record keeps up with what's on screen rather than only
+  // ever being written at final send. Silent on failure — there's no
+  // dedicated resume UI yet to surface a retry into (see campaignId prop
+  // doc above), so this is a head start for when one exists, not something
+  // the user needs to babysit today. Skips the very first render (nothing
+  // has changed yet, and the initial load effect above may still be
+  // filling these in).
+  const skipFirstRef = useRef(true);
+  const autosaveRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => {
+    if (loading) return;
+    if (skipFirstRef.current) {
+      skipFirstRef.current = false;
+      return;
+    }
+    clearTimeout(autosaveRef.current);
+    autosaveRef.current = setTimeout(() => {
+      updateCampaign(
+        campaignId,
+        source === "visual"
+          ? { name, subject, source: "visual", bodyJson: visualBody.json }
+          : {
+              name,
+              subject,
+              source: "import",
+              bodyHtmlImported: sanitizeHtmlSource(importedHtml),
+            },
+      ).catch(() => {});
+      // Keeps the dashboard's session-local copy (see session-drafts.ts)
+      // showing the current name/subject instead of "Untitled campaign"
+      // if the user leaves before this draft is ever sent.
+      updateSessionDraft(campaignId, { name, subject });
+    }, 1000);
+    return () => clearTimeout(autosaveRef.current);
+  }, [loading, campaignId, name, subject, source, visualBody, importedHtml]);
 
   // Debounces the simulated recipient recount. No cleanup effect: React 18
   // silently drops a setState from an unmounted component, so a stray
@@ -114,11 +185,16 @@ export function NewCampaignComposer() {
   const ready = !!name.trim() && !!subject.trim() && !!previewHtml.trim();
 
   async function handleSend() {
-    if (sending || !ready) return;
-    setSending(true);
+    if (sendStep || !ready) return;
     setSendError(false);
+    setSendStep("saving");
     try {
-      const campaign = await createCampaign(
+      // Save whatever's on screen right now — not relying on the debounced
+      // autosave above to have already caught up — then confirm. Both
+      // calls act on the campaign the button created, never create a new
+      // one.
+      await updateCampaign(
+        campaignId,
         source === "visual"
           ? { name, subject, source: "visual", bodyJson: visualBody.json }
           : // Sanitized again right here, immediately before the request
@@ -135,13 +211,29 @@ export function NewCampaignComposer() {
               bodyHtmlImported: sanitizeHtmlSource(importedHtml),
             },
       );
-      await confirmCampaign(campaign.id);
-      router.push("/dashboard");
+      setSendStep("sending");
+      await confirmCampaign(campaignId);
+      setSendStep("done");
+      // Same reasoning as the autosave effect above — reflect the final
+      // name/subject/status in the dashboard's session-local copy so it
+      // shows "Sending" (not a stale "Draft") the moment we redirect back.
+      updateSessionDraft(campaignId, { name, subject, status: "SENDING" });
+      // Hold on "Campaign sent" for a beat before leaving — otherwise the
+      // overlay would appear and vanish in the same frame the mocked
+      // confirm call resolves.
+      setTimeout(() => router.push("/dashboard"), 1200);
     } catch {
+      setSendStep(null);
       setSendError(true);
-    } finally {
-      setSending(false);
     }
+  }
+
+  if (loading) {
+    return (
+      <div className="flex flex-col h-full min-h-0 items-center justify-center">
+        <Spinner size={20} className="border-[#26262F] border-t-orange" />
+      </div>
+    );
   }
 
   return (
@@ -151,7 +243,7 @@ export function NewCampaignComposer() {
         onNameChange={setName}
         counting={counting}
         recipientCount={recipientCount}
-        sending={sending}
+        sending={sendStep !== null}
         sendError={sendError}
         canSend={ready}
         onSend={handleSend}
@@ -185,7 +277,7 @@ export function NewCampaignComposer() {
           </div>
 
           {source === "visual" ? (
-            <EmailEditor initialHtml={SEED_BODY} onChange={setVisualBody} />
+            <EmailEditor initialHtml={visualBody.html} onChange={setVisualBody} />
           ) : (
             <HtmlImportEditor value={importedHtml} onChange={setImportedHtml} />
           )}
@@ -207,6 +299,8 @@ export function NewCampaignComposer() {
           recipientCount={recipientCount}
         />
       </div>
+
+      <SendingOverlay step={sendStep} recipientCount={recipientCount} />
     </div>
   );
 }

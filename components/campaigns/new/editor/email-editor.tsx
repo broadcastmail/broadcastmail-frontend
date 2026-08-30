@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/context-menu";
 import { QuickActionItem } from "./quick-action-item";
 import { RichTextSurface, type RichTextSurfaceHandle } from "./rich-text-surface";
+import { EMPTY_DOC } from "@/lib/campaigns/editor-extensions";
 import { EditorToolbar } from "./editor-toolbar";
 import { EditorFooter } from "./editor-footer";
 import { EmailWarnings } from "./email-warnings";
@@ -106,7 +107,7 @@ export function EmailEditor({ initialHtml, onChange }: EmailEditorProps) {
 
   function handleBodyChange(html: string) {
     setBodyHtml(html);
-    onChange({ html, json: surfaceRef.current?.getJson() ?? { type: "doc", content: [] } });
+    onChange({ html, json: surfaceRef.current?.getJson() ?? EMPTY_DOC });
   }
 
   function openInsertLink() {

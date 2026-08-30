@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+body { margin: 0; background: #08080A; }
+@keyframes bmspin { to { transform: rotate(360deg); } }
+a { color: #F0973F; text-decoration: none; }
+a:hover { color: #FFB067; }
+input, textarea, select { font-family: inherit; }
+input::placeholder, textarea::placeholder { color: #4C4C58; }
+input:focus, textarea:focus, select:focus { outline: none; border-color: #3A3A46; }
+</style>
+</helmet>
+
+<div style="display:flex;flex-direction:column;height:100vh;overflow:hidden;font-family:Geist,sans-serif;background:#08080A;background-image:radial-gradient(circle,#141419 1px,transparent 1px);background-size:24px 24px;">
+
+  <div style="flex-shrink:0;height:52px;box-sizing:border-box;display:flex;align-items:stretch;gap:32px;padding:0 24px;background:#0C0C0F;border-bottom:1px solid rgba(255,255,255,0.07);">
+    <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+      <div style="width:18px;height:18px;border-radius:5px;background:#F0973F;display:flex;align-items:center;justify-content:center;font-family:'Geist Mono',monospace;font-size:11px;font-weight:600;color:#120C06;">b</div>
+      <div style="font-family:'Geist Mono',monospace;font-size:12.5px;font-weight:500;color:#ECECF1;">broadcastmail</div>
+    </div>
+    <div style="display:flex;align-items:stretch;gap:26px;">
+      <div style="display:flex;align-items:center;gap:7px;border-bottom:2px solid #F0973F;color:#F0973F;font-size:13.5px;cursor:pointer;">
+        <svg width="14" height="14" viewBox="0 0 14 14" style="flex-shrink:0;"><rect x="1.5" y="2.5" width="11" height="9" rx="1.5" stroke="currentColor" fill="none" stroke-width="1.3"></rect><path d="M1.5 4.5 7 8l5.5-3.5" stroke="currentColor" fill="none" stroke-width="1.3"></path></svg>
+        Campaigns
+      </div>
+      <div style="display:flex;align-items:center;gap:7px;border-bottom:2px solid transparent;color:#7A7A85;font-size:13.5px;cursor:pointer;" style-hover="color:#B9B9C2;">
+        <svg width="14" height="14" viewBox="0 0 14 14" style="flex-shrink:0;"><circle cx="7" cy="7" r="2.2" stroke="currentColor" fill="none" stroke-width="1.3"></circle><path d="M7 1.5v1.8M7 10.7v1.8M1.5 7h1.8M10.7 7h1.8M3.2 3.2l1.3 1.3M9.5 9.5l1.3 1.3M10.8 3.2 9.5 4.5M4.5 9.5 3.2 10.8" stroke="currentColor" fill="none" stroke-width="1.3"></path></svg>
+        Settings
+      </div>
+      <div style="display:flex;align-items:center;gap:7px;border-bottom:2px solid transparent;color:#7A7A85;font-size:13.5px;cursor:pointer;" style-hover="color:#B9B9C2;">
+        <svg width="14" height="14" viewBox="0 0 14 14" style="flex-shrink:0;"><rect x="1.5" y="3" width="11" height="8" rx="1.5" stroke="currentColor" fill="none" stroke-width="1.3"></rect><path d="M1.5 6h11" stroke="currentColor" stroke-width="1.3"></path></svg>
+        Billing
+      </div>
+    </div>
+    <div style="flex:1;"></div>
+    <div style="display:flex;align-items:center;gap:16px;flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:7px;font-size:12.5px;color:#7A7A85;">
+        <div style="width:5px;height:5px;border-radius:50%;background:#4ADE80;flex-shrink:0;"></div>
+        <span style="font-family:'Geist Mono',monospace;font-size:12px;">my-saas-app</span>
+      </div>
+      <div style="width:1px;height:18px;background:rgba(255,255,255,0.08);"></div>
+      <div style="display:flex;align-items:center;gap:7px;cursor:pointer;">
+        <div style="width:22px;height:22px;border-radius:50%;background:#232329;display:flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;color:#B9B9C2;">L</div>
+        <div style="font-size:12.5px;color:#B9B9C2;">laki@raisepine.com</div>
+        <svg width="9" height="9" viewBox="0 0 10 10"><path d="M1.5 3.5 5 7l3.5-3.5" stroke="#7A7A85" stroke-width="1.4" fill="none" stroke-linecap="round"></path></svg>
+      </div>
+    </div>
+  </div>
+
+  <!-- Campaign header -->
+  <div style="flex-shrink:0;box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;gap:24px;padding:18px 24px;border-bottom:1px solid rgba(255,255,255,0.05);">
+    <div style="flex:1;min-width:0;">
+      <sc-if value="{{ editingName }}" hint-placeholder-val="{{ false }}">
+        <input value="{{ name }}" onChange="{{ onNameChange }}" onBlur="{{ onNameBlur }}" onKeyDown="{{ onNameKey }}" autoFocus="{{ true }}" style="width:320px;max-width:100%;box-sizing:border-box;background:#101015;border:1px solid #3A3A46;border-radius:8px;padding:5px 9px;font-size:20px;font-weight:600;color:#ECECF1;letter-spacing:-0.02em;" />
+      </sc-if>
+      <sc-if value="{{ notEditingName }}" hint-placeholder-val="{{ true }}">
+        <div style="display:inline-flex;align-items:center;gap:8px;border:1px solid transparent;border-radius:8px;padding:5px 9px;margin-left:-9px;font-size:20px;font-weight:600;color:#ECECF1;letter-spacing:-0.02em;cursor:text;" style-hover="border-color:#26262F;" onClick="{{ onNameEdit }}">
+          {{ name }}
+          <svg width="13" height="13" viewBox="0 0 14 14" style="opacity:0.45;flex-shrink:0;"><path d="M9.4 1.9 12.1 4.6 4.7 12H2v-2.7z" stroke="#8E8E9A" stroke-width="1.2" fill="none" stroke-linejoin="round"></path></svg>
+        </div>
+      </sc-if>
+    </div>
+    <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="display:flex;align-items:center;gap:7px;font-size:13px;color:#8E8E9A;white-space:nowrap;">
+          <sc-if value="{{ counting }}" hint-placeholder-val="{{ false }}">
+            <div style="width:11px;height:11px;border:2px solid #26262F;border-top-color:#F0973F;border-radius:50%;animation:bmspin 0.8s linear infinite;flex-shrink:0;"></div>
+          </sc-if>
+          Send to <span style="font-family:'Geist Mono',monospace;color:#ECECF1;font-variant-numeric:tabular-nums;">{{ recipientText }}</span> recipients
+        </div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:7px;box-sizing:border-box;background: {{ sendBg }}; color: {{ sendFg }}; font-size:13.5px;font-weight:600;border-radius:8px;padding:10px 16px;cursor: {{ sendCursor }}; white-space:nowrap;" onClick="{{ onSend }}">
+          <sc-if value="{{ sending }}" hint-placeholder-val="{{ false }}">
+            <div style="width:12px;height:12px;border:2px solid rgba(18,12,6,0.3);border-top-color:#120C06;border-radius:50%;animation:bmspin 0.75s linear infinite;"></div>
+          </sc-if>
+          {{ sendLabel }}
+        </div>
+      </div>
+      <sc-if value="{{ sendError }}" hint-placeholder-val="{{ false }}">
+        <div style="font-size:12.5px;color:#E5726A;text-align:right;">Couldn't start your campaign. Try again.</div>
+      </sc-if>
+    </div>
+  </div>
+
+  <!-- Split pane -->
+  <div style="flex:1;min-height:0;display:flex;">
+
+    <!-- LEFT · compose + audience -->
+    <div style="flex:1;min-width:0;box-sizing:border-box;overflow-y:auto;padding:22px 24px 40px;display:flex;flex-direction:column;gap:20px;border-right:1px solid rgba(255,255,255,0.07);">
+
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <input value="{{ subject }}" onChange="{{ onSubjectChange }}" placeholder="Subject line" style="width:100%;box-sizing:border-box;background:#101015;border:1px solid #26262F;border-radius:8px;padding:12px 14px;font-size:14px;color:#ECECF1;" />
+        <div style="display:flex;justify-content:flex-end;font-family:'Geist Mono',monospace;font-size:11px;color: {{ subjectCountFg }};">{{ subjectCount }} / 78</div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:6px;">
+        <div style="display:flex;flex-direction:column;background:#101015;border:1px solid #26262F;border-radius:8px;overflow:hidden;">
+          <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;padding:8px 9px;border-bottom:1px solid #1E1E26;">
+            <sc-for list="{{ snippets }}" as="sn" hint-placeholder-count="7">
+              <div title="{{ sn.hint }}" style="display:flex;align-items:center;gap:6px;border-radius:6px;padding:5px 9px;font-size:12px;color:#8E8E9A;cursor:pointer;white-space:nowrap;" style-hover="background:rgba(255,255,255,0.06);color:#ECECF1;" onClick="{{ sn.onInsert }}">
+                <div style="width:13px;height:13px;flex-shrink:0;">{{ sn.icon }}</div>
+                {{ sn.label }}
+              </div>
+            </sc-for>
+          </div>
+
+          <textarea value="{{ body }}" onChange="{{ onBodyChange }}" ref="{{ bodyRef }}" placeholder="Write your email — or start with a block above." spellCheck="{{ false }}" style="width:100%;box-sizing:border-box;min-height:288px;flex:1;resize:vertical;background:transparent;border:0;padding:14px;font-family:'Geist Mono',monospace;font-size:13px;line-height:1.65;color:#CBCBD4;"></textarea>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:7px 12px;border-top:1px solid #1E1E26;font-family:'Geist Mono',monospace;font-size:11px;color:#5C5C66;">
+            <span>html</span>
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span>{{ lineCount }} lines</span>
+              <span style="font-family:Geist,sans-serif;font-size:11.5px;color:#71717D;cursor:pointer;display:flex;align-items:center;gap:5px;" style-hover="color:#B9B9C2;" onClick="{{ onToggleTips }}">
+                <svg width="9" height="9" viewBox="0 0 8 8" style="transform: {{ tipsArrow }};"><path d="M2 1 6 4 2 7" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"></path></svg>
+                Writing tips
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <sc-if value="{{ tipsOpen }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:9px;box-sizing:border-box;background:#101015;border:1px solid #1E1E26;border-radius:8px;padding:13px;margin-top:2px;">
+            <sc-for list="{{ tips }}" as="t" hint-placeholder-count="5">
+              <div style="display:flex;gap:9px;align-items:baseline;font-size:12.5px;line-height:1.55;color:#8E8E9A;">
+                <div style="width:5px;height:5px;border-radius:50%;background: {{ t.dot }}; flex-shrink:0;transform:translateY(-2px);"></div>
+                <div><span style="color:#CBCBD4;">{{ t.title }}</span> — {{ t.text }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ hasWarnings }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:7px;margin-top:2px;">
+            <sc-for list="{{ warnings }}" as="w" hint-placeholder-count="1">
+              <div style="display:flex;gap:8px;align-items:baseline;font-size:12px;line-height:1.5;color:#F0973F;">
+                <svg width="11" height="11" viewBox="0 0 12 12" style="flex-shrink:0;transform:translateY(1px);"><path d="M6 1.4 11.2 10.6H0.8z" stroke="#F0973F" stroke-width="1.1" fill="none" stroke-linejoin="round"></path><path d="M6 4.9v2.2" stroke="#F0973F" stroke-width="1.1" stroke-linecap="round"></path><circle cx="6" cy="8.7" r="0.6" fill="#F0973F"></circle></svg>
+                {{ w.text }}
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="height:1px;background:rgba(255,255,255,0.07);"></div>
+
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        <sc-if value="{{ noFilters }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;font-size:13px;color:#71717D;">
+            <span>Sending to everyone · <span style="font-family:'Geist Mono',monospace;color:#8E8E9A;font-variant-numeric:tabular-nums;">{{ totalUsers }}</span> users</span>
+            <sc-if value="{{ canFilter }}" hint-placeholder-val="{{ true }}">
+              <span style="color:#8E8E9A;cursor:pointer;" style-hover="color:#CBCBD4;" onClick="{{ onAddFilter }}">+ Add filter</span>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ hasFilters }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;flex-direction:column;gap:8px;">
+            <sc-for list="{{ filters }}" as="f" hint-placeholder-count="1">
+              <div style="display:grid;grid-template-columns:1fr 92px 1fr 28px;gap:8px;align-items:center;box-sizing:border-box;">
+                <select value="{{ f.column }}" onChange="{{ f.onColumn }}" style="width:100%;box-sizing:border-box;height:38px;background:#101015;border:1px solid #26262F;border-radius:8px;padding:0 10px;font-family:'Geist Mono',monospace;font-size:12.5px;color:#ECECF1;cursor:pointer;">
+                  <sc-for list="{{ f.columnOptions }}" as="c" hint-placeholder-count="3">
+                    <option value="{{ c.value }}">{{ c.label }}</option>
+                  </sc-for>
+                </select>
+                <select value="{{ f.op }}" onChange="{{ f.onOp }}" style="width:100%;box-sizing:border-box;height:38px;background:#101015;border:1px solid #26262F;border-radius:8px;padding:0 10px;font-family:'Geist Mono',monospace;font-size:12.5px;color:#ECECF1;cursor:pointer;">
+                  <sc-for list="{{ f.opOptions }}" as="o" hint-placeholder-count="3">
+                    <option value="{{ o.value }}">{{ o.label }}</option>
+                  </sc-for>
+                </select>
+                <sc-if value="{{ f.isBoolean }}" hint-placeholder-val="{{ false }}">
+                  <select value="{{ f.value }}" onChange="{{ f.onValue }}" style="width:100%;box-sizing:border-box;height:38px;background:#101015;border:1px solid #26262F;border-radius:8px;padding:0 10px;font-family:'Geist Mono',monospace;font-size:12.5px;color:#ECECF1;cursor:pointer;">
+                    <option value="true">true</option>
+                    <option value="false">false</option>
+                  </select>
+                </sc-if>
+                <sc-if value="{{ f.isText }}" hint-placeholder-val="{{ true }}">
+                  <input value="{{ f.value }}" onChange="{{ f.onValue }}" placeholder="{{ f.placeholder }}" style="width:100%;box-sizing:border-box;height:38px;background:#101015;border:1px solid #26262F;border-radius:8px;padding:0 10px;font-family:'Geist Mono',monospace;font-size:12.5px;color:#ECECF1;" />
+                </sc-if>
+                <div style="width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;cursor:pointer;" style-hover="background:rgba(255,255,255,0.07);" onClick="{{ f.onRemove }}">
+                  <svg width="11" height="11" viewBox="0 0 12 12"><path d="M2 2l8 8M10 2l-8 8" stroke="#7A7A85" stroke-width="1.5" stroke-linecap="round"></path></svg>
+                </div>
+              </div>
+            </sc-for>
+            <div style="display:flex;align-items:center;gap:14px;margin-top:2px;">
+              <span style="font-size:13px;color:#8E8E9A;cursor:pointer;" style-hover="color:#CBCBD4;" onClick="{{ onAddFilter }}">+ Add filter</span>
+              <span style="font-size:12.5px;color:#5C5C66;">{{ matchSummary }}</span>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <!-- RIGHT · live preview -->
+    <div style="flex:1;min-width:0;box-sizing:border-box;display:flex;flex-direction:column;background:#0A0A0D;">
+      <div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;border-bottom:1px solid rgba(255,255,255,0.06);">
+        <div style="display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;letter-spacing:0.04em;text-transform:uppercase;color:#7A7A85;">
+          <svg width="13" height="13" viewBox="0 0 14 14"><rect x="1.5" y="2.5" width="11" height="9" rx="1.5" stroke="#7A7A85" fill="none" stroke-width="1.3"></rect><path d="M1.5 4.5 7 8l5.5-3.5" stroke="#7A7A85" fill="none" stroke-width="1.3"></path></svg>
+          Preview
+        </div>
+        <div style="display:flex;align-items:center;gap:2px;background:#101015;border:1px solid #1E1E26;border-radius:7px;padding:2px;">
+          <div style="width:28px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;cursor:pointer;background: {{ desktopBg }};" onClick="{{ onDesktop }}">
+            <svg width="14" height="14" viewBox="0 0 14 14"><rect x="1.5" y="2.5" width="11" height="7.5" rx="1.2" stroke="{{ desktopFg }}" fill="none" stroke-width="1.3"></rect><path d="M5 12h4" stroke="{{ desktopFg }}" stroke-width="1.3" stroke-linecap="round"></path></svg>
+          </div>
+          <div style="width:28px;height:24px;border-radius:5px;display:flex;align-items:center;justify-content:center;cursor:pointer;background: {{ mobileBg }};" onClick="{{ onMobile }}">
+            <svg width="14" height="14" viewBox="0 0 14 14"><rect x="4" y="1.5" width="6" height="11" rx="1.4" stroke="{{ mobileFg }}" fill="none" stroke-width="1.3"></rect><path d="M6.3 10.6h1.4" stroke="{{ mobileFg }}" stroke-width="1.3" stroke-linecap="round"></path></svg>
+          </div>
+        </div>
+      </div>
+
+      <div style="flex:1;min-height:0;overflow-y:auto;padding:24px;display:flex;justify-content:center;background-image:radial-gradient(circle,#17171D 1px,transparent 1px);background-size:20px 20px;">
+        <div style="width: {{ frameWidth }}; max-width:100%;height:fit-content;background:#FFFFFF;border-radius:10px;overflow:hidden;box-shadow:0 18px 44px rgba(0,0,0,0.5);">
+          <div style="box-sizing:border-box;display:flex;flex-direction:column;gap:3px;padding:14px 18px;background:#F4F4F5;border-bottom:1px solid #E4E4E7;">
+            <div style="display:flex;gap:7px;font-size:11.5px;color:#71717A;"><span style="width:34px;flex-shrink:0;">From</span><span style="color:#3F3F46;">hello@yourdomain.com</span></div>
+            <div style="display:flex;gap:7px;font-size:11.5px;color:#71717A;"><span style="width:34px;flex-shrink:0;">To</span><span style="color:#3F3F46;">{{ toLine }}</span></div>
+            <div style="display:flex;gap:7px;font-size:12.5px;color:#71717A;margin-top:2px;"><span style="width:34px;flex-shrink:0;font-size:11.5px;line-height:18px;">Sub</span><span style="font-weight:600;color: {{ subjectPreviewFg }};">{{ subjectPreview }}</span></div>
+          </div>
+          <iframe srcDoc="{{ previewDoc }}" title="Email preview" style="display:block;width:100%;height: {{ frameHeight }}; border:0;background:#FFFFFF;"></iframe>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{
+  &quot;noFilterableColumns&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Connection&quot; },
+  &quot;countFails&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Error states&quot; },
+  &quot;sendFails&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Error states&quot; }
+}">
+const COLUMNS = [
+  { name: 'plan', type: 'text' },
+  { name: 'created_at', type: 'timestamptz' },
+  { name: 'is_verified', type: 'boolean' }
+];
+const OPS = {
+  text: [['eq', '='], ['neq', '≠'], ['contains', 'contains']],
+  boolean: [['eq', '='], ['neq', '≠']],
+  timestamptz: [['gt', '>'], ['lt', '<'], ['eq', '=']]
+};
+const TOTAL = 4960;
+
+const SEED = '<p>Hi there,</p>\n\n<p>We shipped <strong>v2.4</strong> this week — inbound webhooks, faster\n   cold starts, and a rewritten logs view.</p>\n\n<p><a href="https://example.com/changelog">Read the changelog →</a></p>\n\n<p>— Laki</p>';
+
+function shell(body) {
+  return '<!doctype html><html><head><meta charset="utf-8"><style>' +
+    'html,body{margin:0;padding:0;background:#fff;}' +
+    'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;' +
+    'font-size:15px;line-height:1.6;color:#18181B;padding:28px 24px 20px;}' +
+    'p{margin:0 0 14px;} a{color:#2563EB;} img{max-width:100%;}' +
+    'h1,h2,h3{line-height:1.25;margin:0 0 12px;}' +
+    '.bm-unsub{margin-top:28px;padding-top:16px;border-top:1px solid #E4E4E7;' +
+    'font-size:11.5px;color:#A1A1AA;text-align:center;}' +
+    '.bm-unsub a{color:#A1A1AA;text-decoration:underline;}' +
+    '.bm-empty{color:#D4D4D8;font-style:italic;}' +
+    '</style></head><body>' + body +
+    '<div class="bm-unsub">You are receiving this because you have an account with us.<br>' +
+    '<a href="#">Unsubscribe</a></div></body></html>';
+}
+
+const ICONS = {
+  text: 'M2 3h10M2 6.5h10M2 10h6',
+  heading: 'M3 2v10M9.5 2v10M3 7h6.5',
+  link: 'M5.6 8.4a2.4 2.4 0 010-3.4l1.6-1.6a2.4 2.4 0 013.4 3.4l-.8.8M8.4 5.6a2.4 2.4 0 010 3.4l-1.6 1.6a2.4 2.4 0 01-3.4-3.4l.8-.8',
+  button: 'M1.5 4.5h11v5h-11zM4.5 7h5',
+  image: 'M1.5 2.5h11v9h-11zM1.5 9l3-3 2.5 2.5 2-2 3.5 3.5M9.5 5.2h.01',
+  divider: 'M1.5 7h11',
+  merge: 'M4.5 2.5c-1.2 0-1.7.7-1.7 1.8v1.3c0 .9-.4 1.4-1.3 1.4.9 0 1.3.5 1.3 1.4v1.3c0 1.1.5 1.8 1.7 1.8M9.5 2.5c1.2 0 1.7.7 1.7 1.8v1.3c0 .9.4 1.4 1.3 1.4-.9 0-1.3.5-1.3 1.4v1.3c0 1.1-.5 1.8-1.7 1.8'
+};
+
+const SNIPPETS = [
+  { label: 'Paragraph', icon: 'text', hint: 'A block of body text', snip: '<p>$</p>' },
+  { label: 'Heading', icon: 'heading', hint: 'Section heading', snip: '<h2>$</h2>' },
+  { label: 'Link', icon: 'link', hint: 'Inline text link', snip: '<a href="https://">$</a>' },
+  { label: 'Button', icon: 'button', hint: 'Call-to-action button — built to render in Outlook', snip: '<table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr>\n  <td bgcolor="#18181B" style="border-radius:6px;">\n    <a href="https://" style="display:inline-block;padding:12px 22px;color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;">$</a>\n  </td>\n</tr></table>' },
+  { label: 'Image', icon: 'image', hint: 'Image with alt text and mobile-safe width', snip: '<img src="https://" alt="$" width="552" style="max-width:100%;height:auto;display:block;">' },
+  { label: 'Divider', icon: 'divider', hint: 'Horizontal rule between sections', snip: '<hr style="border:0;border-top:1px solid #E4E4E7;margin:24px 0;">' },
+  { label: 'First name', icon: 'merge', hint: 'Personalisation — falls back to “there” when unknown', snip: '{{first_name}}' }
+];
+
+const TIPS = [
+  { dot: '#4ADE80', title: 'Tables, not flexbox', text: 'Outlook ignores flex and grid. Use table layouts for anything side by side.' },
+  { dot: '#4ADE80', title: 'Inline your styles', text: 'Gmail strips <style> blocks in some clients — put CSS on the element.' },
+  { dot: '#4ADE80', title: 'One clear CTA', text: 'A single primary link outperforms three competing ones.' },
+  { dot: '#F0973F', title: 'Keep it under 102 KB', text: 'Gmail clips longer emails and hides your unsubscribe link.' },
+  { dot: '#F0973F', title: 'Alt text on every image', text: 'Most clients block images by default — the alt text is what they read first.' }
+];
+
+class Component extends DCLogic {
+  state = {
+    name: 'Campaign #4', editingName: false, tips: false, caret: null,
+    subject: 'v2.4 is out — webhooks, faster cold starts', body: SEED,
+    doc: shell(SEED), device: 'desktop',
+    filters: [], count: TOTAL, counting: false,
+    sending: false, error: false
+  };
+
+  componentWillUnmount() { clearTimeout(this._d); clearTimeout(this._s); clearTimeout(this._p); }
+
+  setBody(v) {
+    this.setState({ body: v });
+    clearTimeout(this._p);
+    this._p = setTimeout(() => this.setState(st => ({
+      doc: shell(st.body.trim() ? st.body : '<p class="bm-empty">Your email body will appear here.</p>')
+    })), 300);
+  }
+
+  insert(snip) {
+    const el = this._body;
+    const body = this.state.body;
+    const at = el ? el.selectionStart : body.length;
+    const end = el ? el.selectionEnd : body.length;
+    const sel = body.slice(at, end);
+    const filled = snip.indexOf('$') === -1 ? snip : snip.replace('$', sel || 'Your text');
+    const lead = at > 0 && body[at - 1] !== '\n' && filled[0] === '<' ? '\n' : '';
+    const next = body.slice(0, at) + lead + filled + body.slice(end);
+    this.setBody(next);
+    if (el) {
+      const pos = at + lead.length + filled.length;
+      setTimeout(() => { el.focus(); el.setSelectionRange(pos, pos); }, 0);
+    }
+  }
+
+  recount(filters) {
+    clearTimeout(this._d);
+    if (!filters.length) { this.setState({ counting: false, count: TOTAL }); return; }
+    this.setState({ counting: true });
+    this._d = setTimeout(() => {
+      const n = filters.reduce((acc, f) => Math.round(acc * (f.value ? 0.42 : 0.71)), TOTAL);
+      this.setState({ counting: false, count: Math.max(n, 3) });
+    }, 500);
+  }
+
+  patch(i, patch) {
+    this.setState(s => {
+      const filters = s.filters.map((f, j) => j === i ? Object.assign({}, f, patch) : f);
+      this.recount(filters);
+      return { filters };
+    });
+  }
+
+  send() {
+    if (this.state.sending || !this.state.subject.trim() || !this.state.body.trim()) return;
+    this.setState({ sending: true, error: false });
+    clearTimeout(this._s);
+    this._s = setTimeout(() => this.setState({ sending: false, error: !!this.props.sendFails }), 1000);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const cols = (this.props.noFilterableColumns ?? false) ? [] : COLUMNS;
+    const ready = !!s.subject.trim() && !!s.body.trim();
+    const active = ready && !s.sending;
+    const mobile = s.device === 'mobile';
+    const subjLen = s.subject.length;
+
+    return {
+      name: s.name,
+      editingName: s.editingName,
+      notEditingName: !s.editingName,
+      onNameEdit: () => this.setState({ editingName: true }),
+      onNameChange: e => this.setState({ name: e.target.value }),
+      onNameBlur: () => this.setState({ editingName: false }),
+      onNameKey: e => { if (e.key === 'Enter' || e.key === 'Escape') this.setState({ editingName: false }); },
+
+      counting: s.counting,
+      recipientText: this.props.countFails ? '—' : s.count.toLocaleString(),
+      totalUsers: TOTAL.toLocaleString(),
+
+      sending: s.sending,
+      sendLabel: s.sending ? 'Sending…' : 'Send campaign',
+      sendBg: active ? '#F0973F' : '#17171D',
+      sendFg: active ? '#120C06' : '#4C4C58',
+      sendCursor: active ? 'pointer' : 'not-allowed',
+      onSend: () => this.send(),
+      sendError: s.error,
+
+      subject: s.subject,
+      body: s.body,
+      onSubjectChange: e => this.setState({ subject: e.target.value }),
+      onBodyChange: e => this.setBody(e.target.value),
+      subjectCount: subjLen,
+      subjectCountFg: subjLen > 78 ? '#F0973F' : '#5C5C66',
+      lineCount: s.body ? s.body.split('\n').length : 0,
+
+      bodyRef: el => { this._body = el; },
+      onCaret: () => {},
+      snippets: SNIPPETS.map(sn => ({
+        label: sn.label, hint: sn.hint,
+        icon: React.createElement('svg', { width: 13, height: 13, viewBox: '0 0 14 14' },
+          React.createElement('path', { d: ICONS[sn.icon], stroke: 'currentColor', strokeWidth: 1.25, fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' })),
+        onInsert: () => this.insert(sn.snip)
+      })),
+      tipsOpen: s.tips,
+      tipsArrow: s.tips ? 'rotate(90deg)' : 'none',
+      tips: TIPS,
+      warnings: (function () {
+        const w = [];
+        const b = s.body;
+        if (/<img(?![^>]*\balt=)/i.test(b)) w.push({ text: 'An image is missing alt text — blocked-image clients will show nothing.' });
+        if (/display\s*:\s*(flex|grid)/i.test(b)) w.push({ text: 'flex / grid detected — Outlook ignores both. Use a table for that layout.' });
+        if (b.length > 102400) w.push({ text: 'Over 102 KB — Gmail will clip this email and hide the unsubscribe link.' });
+        if (!/<a\s/i.test(b) && b.trim()) w.push({ text: 'No links yet — an email without a call to action rarely converts.' });
+        return w;
+      })(),
+      hasWarnings: (/<img(?![^>]*\balt=)/i.test(s.body) || /display\s*:\s*(flex|grid)/i.test(s.body) || s.body.length > 102400 || (!/<a\s/i.test(s.body) && !!s.body.trim())),
+      onToggleTips: () => this.setState(p => ({ tips: !p.tips })),
+
+      previewDoc: s.doc,
+      subjectPreview: s.subject.trim() || 'No subject',
+      subjectPreviewFg: s.subject.trim() ? '#18181B' : '#A1A1AA',
+      toLine: s.count.toLocaleString() + ' recipients',
+      frameWidth: mobile ? '375px' : '600px',
+      frameHeight: mobile ? '620px' : '520px',
+      desktopBg: mobile ? 'transparent' : '#232329',
+      desktopFg: mobile ? '#5C5C66' : '#ECECF1',
+      mobileBg: mobile ? '#232329' : 'transparent',
+      mobileFg: mobile ? '#ECECF1' : '#5C5C66',
+      onDesktop: () => this.setState({ device: 'desktop' }),
+      onMobile: () => this.setState({ device: 'mobile' }),
+
+      canFilter: cols.length > 0,
+      noFilters: s.filters.length === 0,
+      hasFilters: s.filters.length > 0,
+      matchSummary: s.counting ? 'updating…' : Math.round((s.count / TOTAL) * 100) + '% of your audience',
+      onAddFilter: () => {
+        if (!cols.length) return;
+        this.setState(st => {
+          const filters = st.filters.concat([{ column: cols[0].name, op: OPS[cols[0].type][0][0], value: cols[0].type === 'boolean' ? 'true' : '' }]);
+          this.recount(filters);
+          return { filters };
+        });
+      },
+      filters: s.filters.map((f, i) => {
+        const def = cols.filter(c => c.name === f.column)[0] || cols[0];
+        const type = def ? def.type : 'text';
+        return {
+          column: f.column, op: f.op, value: f.value,
+          isBoolean: type === 'boolean',
+          isText: type !== 'boolean',
+          placeholder: type === 'timestamptz' ? '2026-01-01' : 'value',
+          columnOptions: cols.map(c => ({ value: c.name, label: c.name })),
+          opOptions: OPS[type].map(o => ({ value: o[0], label: o[1] })),
+          onColumn: e => {
+            const next = cols.filter(c => c.name === e.target.value)[0];
+            this.patch(i, { column: e.target.value, op: OPS[next.type][0][0], value: next.type === 'boolean' ? 'true' : '' });
+          },
+          onOp: e => this.patch(i, { op: e.target.value }),
+          onValue: e => this.patch(i, { value: e.target.value }),
+          onRemove: () => this.setState(st => {
+            const filters = st.filters.filter((_, j) => j !== i);
+            this.recount(filters);
+            return { filters };
+          })
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>

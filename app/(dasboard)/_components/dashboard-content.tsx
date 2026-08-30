@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { DashboardHero } from "./dashboard-hero";
 import { CampaignSection } from "./campaign-section";
+import { NewCampaignButton } from "@/components/dashboard/new-campaign-button";
 import { apiClient } from "@/lib/api/client";
 import { forwardedCookieHeader } from "@/lib/api/server-cookies";
 import type { Campaign } from "@/mocks/fixtures";
@@ -46,20 +46,7 @@ export async function DashboardContent() {
             Send to segments of your Supabase users.
           </p>
         </div>
-        <Link
-          href="/dashboard/campaigns/new"
-          className="flex items-center gap-1.75 bg-orange hover:bg-orange-hover text-[#120C06] text-[13.5px] font-semibold rounded-lg px-4 py-2.5 transition-colors whitespace-nowrap"
-        >
-          <svg width="13" height="13" viewBox="0 0 14 14">
-            <path
-              d="M7 2v10M2 7h10"
-              stroke="#120C06"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-            />
-          </svg>
-          New campaign
-        </Link>
+        <NewCampaignButton />
       </header>
       {metrics && (
         <DashboardHero

@@ -8,9 +8,8 @@ import {
   type Editor,
   type JSONContent,
 } from "@tiptap/react";
-import StarterKit from "@tiptap/starter-kit";
 import { cn } from "@/lib/utils";
-import { EmailLink, EmailImage, CtaButton } from "@/lib/campaigns/editor-extensions";
+import { EMAIL_EDITOR_EXTENSIONS, EMPTY_DOC } from "@/lib/campaigns/editor-extensions";
 
 export interface RichTextSurfaceHandle {
   /** Insert HTML at the caret (or replace the current selection with it).
@@ -96,19 +95,7 @@ export const RichTextSurface = forwardRef<
   const editor = useEditor({
     immediatelyRender: false,
     content: initialHtml,
-    extensions: [
-      StarterKit.configure({
-        blockquote: false,
-        codeBlock: false,
-        code: false,
-        strike: false,
-        link: false, // replaced by EmailLink below (adds URL re-validation)
-        heading: { levels: [1, 2, 3] },
-      }),
-      EmailLink,
-      EmailImage,
-      CtaButton,
-    ],
+    extensions: EMAIL_EDITOR_EXTENSIONS,
     editorProps: {
       attributes: {
         role: "textbox",
@@ -137,6 +124,12 @@ export const RichTextSurface = forwardRef<
         ),
       },
     },
+    // Fires once on mount too (not just on every edit after) — without
+    // this, a resumed draft's actual seeded content would never make it
+    // into the parent's state until the first keystroke, so submitting
+    // (or autosaving) before then would silently send an empty document
+    // even though the editor visibly shows the resumed content.
+    onCreate: ({ editor }) => onChange(editor.getHTML()),
     onUpdate: ({ editor }) => {
       setIsEmpty(editor.isEmpty);
       onChange(editor.getHTML());
@@ -159,7 +152,7 @@ export const RichTextSurface = forwardRef<
         return editor.state.doc.textBetween(from, to, " ");
       },
       commit: () => {},
-      getJson: () => editor?.getJSON() ?? { type: "doc", content: [] },
+      getJson: () => editor?.getJSON() ?? EMPTY_DOC,
       insertHtml: (html) => {
         editor?.chain().focus().insertContent(html).run();
       },
