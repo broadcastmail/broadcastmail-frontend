@@ -1,4 +1,5 @@
 import { faker } from "@faker-js/faker";
+import type { JSONContent } from "@tiptap/core";
 
 export type CampaignStatus =
   | "DRAFT"
@@ -11,7 +12,14 @@ export type CampaignStatus =
 export interface Campaign {
   id: string;
   name: string;
+  subject: string;
   status: CampaignStatus;
+  // Mirrors CreateCampaignPayload's discriminated union (lib/api/campaigns.ts)
+  // — kept as the same two mutually-exclusive shapes here so a fetched
+  // draft can seed the composer exactly the way it would've been sent.
+  source: "visual" | "import";
+  bodyJson: JSONContent | null;
+  bodyHtmlImported: string | null;
   recipientCount: number | null;
   sentCount: number;
   deliveredCount: number;
@@ -46,7 +54,11 @@ export const fakeCampaign = (overrides?: Partial<Campaign>): Campaign => {
   return {
     id: faker.string.uuid(),
     name: faker.lorem.words(3),
+    subject: faker.lorem.sentence(),
     status,
+    source: "visual",
+    bodyJson: null,
+    bodyHtmlImported: null,
     recipientCount: hasRecipients
       ? faker.number.int({ min: 10, max: 500 })
       : null,

@@ -9,11 +9,6 @@ interface Project {
   name: string;
 }
 
-// TODO(backend): the real NewUserMultipleProjects payload only carries
-// ref/name per project (see MOCK_PROJECTS in mocks/handlers/oauth.ts) — no
-// per-project user count is available before a reader role exists on that
-// project's DB, so the design mock's "{n} users" meta column is dropped
-// here rather than faked.
 export function SelectProjectFlow({ partialToken }: { partialToken: string }) {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [picked, setPicked] = useState(0);

@@ -62,8 +62,6 @@ export function SchemaFlow({ schema }: { schema: SchemaIntrospectionResult | nul
     setTesting(true);
     setTestError(null);
     try {
-      // TODO(backend): POST /api/v1/onboarding/schema/test doesn't exist
-      // yet — see the missing-endpoints summary.
       await apiClient.post("/api/v1/onboarding/schema/test");
       router.push(ONBOARDING_STEP_PATH.CONNECT_RESEND);
     } catch {

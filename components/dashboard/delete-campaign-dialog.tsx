@@ -8,6 +8,7 @@ import {
   AlertDialogFooter,
 } from "@/components/ui/alert-dialog";
 import { apiClient } from "@/lib/api/client";
+import { removeSessionDraft } from "@/lib/campaigns/session-drafts";
 
 interface DeleteCampaignDialogProps {
   open: boolean;
@@ -43,6 +44,7 @@ export function DeleteCampaignDialog({
     setError(null);
     try {
       await apiClient.delete(`/api/v1/campaigns/${campaign.id}`);
+      removeSessionDraft(campaign.id);
       onOpenChange(false);
       onDeleted();
     } catch {

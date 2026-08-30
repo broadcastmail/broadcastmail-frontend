@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { StatusBadge } from "@/components/dashboard/status-badge";
 import { Campaign } from "@/mocks/fixtures";
 import { TableRow, TableCell } from "@/components/ui/table";
@@ -34,6 +35,7 @@ function formatSentDate(sentAt: string): string {
 }
 
 export function CampaignRow({ campaign }: CampaignRowProps) {
+  const router = useRouter();
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -42,12 +44,21 @@ export function CampaignRow({ campaign }: CampaignRowProps) {
 
   if (deleted) return null;
 
+  // Only a DRAFT has anywhere to go back to right now — there's no
+  // sent-campaign detail/analytics view yet, just the composer, and
+  // reopening it for a campaign that's already sending/sent would be
+  // misleading (it'd look editable when it isn't).
+  const resumable = campaign.status === "DRAFT";
+
   return (
     <>
       <TableRow
-        className={`border-b border-white/[0.045] hover:bg-white/[0.035] cursor-pointer transition-all duration-[240ms] relative group ${fading ? "opacity-0" : "opacity-100"}`}
+        className={`border-b border-white/[0.045] hover:bg-white/[0.035] transition-all duration-[240ms] relative group ${resumable ? "cursor-pointer" : "cursor-default"} ${fading ? "opacity-0" : "opacity-100"}`}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
+        onClick={() => {
+          if (resumable) router.push(`/dashboard/campaigns/${campaign.id}`);
+        }}
       >
         <TableCell className="py-[11px] px-[18px] text-[14px] text-text-primary w-full min-w-[140px]">
           {campaign.name}
