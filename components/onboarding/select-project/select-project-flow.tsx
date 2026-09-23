@@ -1,41 +1,59 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
-import { Spinner } from "@/components/onboarding/spinner";
+import type { ConnectionProject } from "@/lib/types/connection";
 
-interface Project {
-  ref: string;
-  name: string;
+interface SelectProjectFlowProps {
+  partialToken: string;
+  /** Fetched server-side by the rendering page — no client fetch on mount. */
+  projects: ConnectionProject[];
+  /** Overrides the default "follow the real redirect" navigation. */
+  onSelected?: (projectRef: string) => void;
+  /** Persists the pick. Defaults to the OAuth select-project POST; reconnect callers override it. */
+  onContinue?: (projectRef: string) => Promise<void>;
+  /** Hides the post-OAuth badge — irrelevant for reconnect, which has no OAuth hop. */
+  showConnectedBadge?: boolean;
 }
 
-export function SelectProjectFlow({ partialToken }: { partialToken: string }) {
-  const [projects, setProjects] = useState<Project[] | null>(null);
+async function defaultContinue(
+  partialToken: string,
+  projectRef: string,
+  onSelected: ((projectRef: string) => void) | undefined,
+): Promise<void> {
+  // fetch() follows the redirect; response.url is the real next step.
+  const res = await fetch("/api/v1/oauth/supabase/select-project", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ projectRef, partialSessionToken: partialToken }),
+  });
+  if (onSelected) {
+    onSelected(projectRef);
+  } else {
+    window.location.href = new URL(res.url).pathname;
+  }
+}
+
+export function SelectProjectFlow({
+  partialToken,
+  projects,
+  onSelected,
+  onContinue,
+  showConnectedBadge = true,
+}: SelectProjectFlowProps) {
   const [picked, setPicked] = useState(0);
   const [connecting, setConnecting] = useState(false);
 
-  useEffect(() => {
-    fetch("/api/v1/oauth/supabase/mock-projects")
-      .then((res) => res.json())
-      .then(setProjects);
-  }, []);
-
   async function handleContinue() {
-    if (!projects || connecting) return;
+    if (!projects.length || connecting) return;
     const project = projects[picked];
     setConnecting(true);
-    // The real endpoint 302s to the next onboarding step. fetch() follows
-    // same-origin redirects by default, so response.url ends up as the
-    // final destination — we just navigate there ourselves.
-    const res = await fetch("/api/v1/oauth/supabase/select-project", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        projectRef: project.ref,
-        partialSessionToken: partialToken,
-      }),
-    });
-    window.location.href = new URL(res.url).pathname;
+    try {
+      if (onContinue) await onContinue(project.ref);
+      else await defaultContinue(partialToken, project.ref, onSelected);
+    } finally {
+      setConnecting(false);
+    }
   }
 
   return (
@@ -44,22 +62,23 @@ export function SelectProjectFlow({ partialToken }: { partialToken: string }) {
         <h1 className="text-[22px] font-semibold text-[#ECECF1] tracking-[-0.02em]">
           Which project has your users?
         </h1>
-        <div className="flex items-center gap-2 bg-[#0F1A15] border border-[#1E3A2E] text-[#3ECF8E] text-[13px] font-medium rounded-lg px-3 py-[10px]">
-          <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true">
-            <path d="M8 1 2.5 8.2h4L5.6 13 11.5 5.8h-4L8 1z" fill="#3ECF8E" />
-          </svg>
-          Connected to Supabase
-        </div>
+        {showConnectedBadge && (
+          <div className="flex items-center gap-2 bg-[#0F1A15] border border-[#1E3A2E] text-[#3ECF8E] text-[13px] font-medium rounded-lg px-3 py-[10px]">
+            <svg width="13" height="13" viewBox="0 0 14 14" aria-hidden="true">
+              <path d="M8 1 2.5 8.2h4L5.6 13 11.5 5.8h-4L8 1z" fill="#3ECF8E" />
+            </svg>
+            Connected to Supabase
+          </div>
+        )}
       </div>
 
       <div className="flex flex-col gap-2">
-        {!projects && (
-          <div className="flex items-center gap-2 py-1">
-            <Spinner size={13} className="border-[#26262F] border-t-orange" />
-            <p className="text-[13.5px] text-[#8E8E9A]">Loading projects…</p>
-          </div>
+        {projects.length === 0 && (
+          <p className="text-[13.5px] text-[#8E8E9A]">
+            No projects found on that Supabase account.
+          </p>
         )}
-        {projects?.map((project, i) => {
+        {projects.map((project, i) => {
           const active = i === picked;
           return (
             <button
@@ -102,7 +121,7 @@ export function SelectProjectFlow({ partialToken }: { partialToken: string }) {
       <button
         type="button"
         onClick={handleContinue}
-        disabled={!projects || connecting}
+        disabled={!projects.length || connecting}
         className="flex items-center justify-center bg-orange hover:bg-orange-hover text-[#120C06] text-[14px] font-semibold rounded-lg py-3 cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
       >
         {connecting ? "Connecting…" : "Continue"}

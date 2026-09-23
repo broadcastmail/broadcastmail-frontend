@@ -23,9 +23,40 @@ export interface Campaign {
   recipientCount: number | null;
   sentCount: number;
   deliveredCount: number;
+  // Cumulative counters, not mutually-exclusive buckets of recipientCount —
+  // a recipient that opened is counted in both deliveredCount (delivery
+  // happened) and openedCount (and later bouncedCount/failedCount are the
+  // only ways to *not* land in deliveredCount). Mirrors the real API's
+  // CampaignResponse (broadcastmail-api/campaign/dto/CampaignResponse.java),
+  // which already tracks openedCount/bouncedCount this way.
+  openedCount: number;
+  bouncedCount: number;
   failedCount: number;
   sentAt: string | null;
   createdAt: string;
+}
+
+// Mirrors the real backend's RecipientStatus enum
+// (broadcastmail-common/campaign/recipient/RecipientStatus.java). SENT and
+// UNSUBSCRIBED are included for shape fidelity but never produced by the
+// mock's simulation below — see mocks/handlers/campaigns.ts.
+export type RecipientStatus =
+  | "QUEUED"
+  | "SENT"
+  | "DELIVERED"
+  | "OPENED"
+  | "BOUNCED"
+  | "FAILED"
+  | "UNSUBSCRIBED";
+
+export interface CampaignRecipient {
+  id: string;
+  email: string;
+  status: RecipientStatus;
+  deliveredAt: string | null;
+  openedAt: string | null;
+  bouncedAt: string | null;
+  failedReason: string | null;
 }
 
 export interface DashboardData {
@@ -64,6 +95,8 @@ export const fakeCampaign = (overrides?: Partial<Campaign>): Campaign => {
       : null,
     sentCount: hasRecipients ? faker.number.int({ min: 0, max: 500 }) : 0,
     deliveredCount: hasRecipients ? faker.number.int({ min: 0, max: 450 }) : 0,
+    openedCount: hasRecipients ? faker.number.int({ min: 0, max: 200 }) : 0,
+    bouncedCount: hasRecipients ? faker.number.int({ min: 0, max: 8 }) : 0,
     failedCount: hasRecipients ? faker.number.int({ min: 0, max: 10 }) : 0,
     sentAt: hasRecipients
       ? faker.date.recent({ days: 30 }).toISOString()
@@ -75,6 +108,13 @@ export const fakeCampaign = (overrides?: Partial<Campaign>): Campaign => {
 
 export const fakeCampaigns = (count = 8): Campaign[] =>
   Array.from({ length: count }, () => fakeCampaign());
+
+export interface AccountEmailProviderInfo {
+  // Null for an account that never connected Resend — no demo-data
+  // fallback here (see mocks/handlers/dashboard.ts), so Settings can show
+  // "Not configured" honestly instead of a fake address.
+  fromAddress: string | null;
+}
 
 export const fakeDashboard = (): DashboardData => {
   const campaigns = fakeCampaigns();

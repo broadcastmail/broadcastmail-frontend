@@ -11,9 +11,10 @@ export default async function EmailProviderPage() {
   }
 
   const schema = await getSchemaIntrospection();
-  const connectedTable = schema
-    ? `${schema.userTableSchema}.${schema.userTableName}`
-    : null;
+  const connectedTable =
+    schema?.status === "DETECTED"
+      ? `${schema.userTableSchema}.${schema.userTableName}`
+      : null;
 
   return (
     <OnboardingShell stepLabel="step 2 / 2">

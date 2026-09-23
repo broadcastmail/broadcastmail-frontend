@@ -5,34 +5,25 @@ import {
   HAS_ACCOUNT_COOKIE,
   ONBOARDING_PROJECT_COOKIE,
   ONBOARDING_SCHEMA_COOKIE,
-  ONBOARDING_RESEND_COOKIE,
+  ONBOARDING_COLUMNS_COOKIE,
   hasCookie,
   setCookie,
 } from "../session";
+import { CONNECTABLE_PROJECTS } from "./connections";
 
-// Mirrors OAuthSupabaseController's three-way callback result. The real
-// flow is: authorize -> redirect to Supabase -> user approves -> Supabase
-// redirects to our callback with ?code&state. We can't hit a real Supabase
-// consent screen locally, so /authorize here short-circuits straight to
-// the outcome the real /callback would produce, skipping the external hop.
-//
-// Which of the three outcomes you get is driven by mock state, same as it
-// would be by your account data in the real DB:
-//   - HAS_ACCOUNT_COOKIE present  -> ReturningUser
-//   - "?projects=multi" query param on the authorize URL (dev-only test
-//     hook, no real equivalent) -> NewUserMultipleProjects
-//   - otherwise                   -> NewUserSingleProject
-
-const MOCK_PROJECTS = [
-  { ref: "my-saas-app", name: "my-saas-app" },
-  { ref: "internal-tools", name: "internal-tools" },
-];
+// Short-circuits to the callback outcome — no real Supabase screen locally.
+const RECONFIGURE_PARTIAL_TOKEN = "mock_partial_token_reconfigure";
+const ONBOARDING_PARTIAL_TOKEN = "mock_partial_token";
 
 function resolveOutcome(request: Request) {
+  const url = new URL(request.url);
+  const reconfigure = url.searchParams.get("intent") === "reconfigure";
+  if (reconfigure) {
+    return "reconfigure" as const;
+  }
   if (hasCookie(request, HAS_ACCOUNT_COOKIE)) {
     return "returning" as const;
   }
-  const url = new URL(request.url);
   if (url.searchParams.get("projects") === "multi") {
     return "multiple" as const;
   }
@@ -49,28 +40,41 @@ function handleOAuthEntry(request: Request) {
       });
     }
     case "multiple": {
-      // No cookie yet — matches the backend, which only hands out the
-      // partial session token as a URL param until a project is picked.
+      // No cookie yet — only a partial token, until a project is picked.
       return new HttpResponse(null, {
         status: 302,
         headers: {
-          Location:
-            "/onboarding/select-project?partialToken=mock_partial_token",
+          Location: `/onboarding/select-project?partialToken=${ONBOARDING_PARTIAL_TOKEN}`,
         },
+      });
+    }
+    case "reconfigure": {
+      // Same two-vs-many-projects split, landing on Settings' own routes.
+      if (CONNECTABLE_PROJECTS.length > 1) {
+        return new HttpResponse(null, {
+          status: 302,
+          headers: {
+            Location: `/settings/reconfigure/select-project?partialToken=${RECONFIGURE_PARTIAL_TOKEN}`,
+          },
+        });
+      }
+      setCookie(ONBOARDING_COOKIE, "mock_onboarding_token", 60 * 30);
+      setCookie(ONBOARDING_PROJECT_COOKIE, CONNECTABLE_PROJECTS[0].ref, 60 * 30);
+      setCookie(ONBOARDING_SCHEMA_COOKIE, "", 0);
+      setCookie(ONBOARDING_COLUMNS_COOKIE, "", 0);
+      return new HttpResponse(null, {
+        status: 302,
+        headers: { Location: "/settings/reconfigure/schema" },
       });
     }
     case "single": {
       setCookie(ONBOARDING_COOKIE, "mock_onboarding_token", 60 * 30);
-      setCookie(ONBOARDING_PROJECT_COOKIE, MOCK_PROJECTS[0].ref, 60 * 30);
-      // Fresh onboarding session — clear any leftover progress from a
-      // previous run so /status starts back at CONFIRM_SCHEMA.
+      setCookie(ONBOARDING_PROJECT_COOKIE, CONNECTABLE_PROJECTS[0].ref, 60 * 30);
+      // Fresh session — clear leftover progress so /status starts at CONFIRM_SCHEMA.
       setCookie(ONBOARDING_SCHEMA_COOKIE, "", 0);
-      setCookie(ONBOARDING_RESEND_COOKIE, "", 0);
+      setCookie(ONBOARDING_COLUMNS_COOKIE, "", 0);
       return new HttpResponse(null, {
         status: 302,
-        // Real backend always lands here regardless of actual step —
-        // /onboarding/email-provider's page.tsx checks /status and
-        // redirects to /onboarding/schema itself.
         headers: { Location: "/onboarding/email-provider" },
       });
     }
@@ -84,32 +88,37 @@ export const oauthHandlers = [
     handleOAuthEntry(request),
   ),
 
-  // Kept for shape parity with the real controller / for hitting directly
-  // during dev — in the mocked flow /authorize never actually redirects
-  // here, since there's no real Supabase hop to bounce back from.
+  // Kept for shape parity; the mocked flow never actually redirects here.
   http.get("*/api/v1/oauth/supabase/callback", ({ request }) =>
     handleOAuthEntry(request),
   ),
 
+  // No cookie needed — the partial token itself is the credential.
+  http.get("*/api/v1/oauth/supabase/projects", () => {
+    return HttpResponse.json(CONNECTABLE_PROJECTS);
+  }),
+
   http.post("*/api/v1/oauth/supabase/select-project", async ({ request }) => {
-    const body = (await request.json()) as { projectRef?: string };
+    const body = (await request.json()) as {
+      projectRef?: string;
+      partialSessionToken?: string;
+    };
+    const reconfigure = body.partialSessionToken === RECONFIGURE_PARTIAL_TOKEN;
     setCookie(ONBOARDING_COOKIE, "mock_onboarding_token", 60 * 30);
     setCookie(
       ONBOARDING_PROJECT_COOKIE,
-      body.projectRef ?? MOCK_PROJECTS[0].ref,
+      body.projectRef ?? CONNECTABLE_PROJECTS[0].ref,
       60 * 30,
     );
     setCookie(ONBOARDING_SCHEMA_COOKIE, "", 0);
-    setCookie(ONBOARDING_RESEND_COOKIE, "", 0);
+    setCookie(ONBOARDING_COLUMNS_COOKIE, "", 0);
     return new HttpResponse(null, {
       status: 302,
-      headers: { Location: "/onboarding/email-provider" },
+      headers: {
+        Location: reconfigure
+          ? "/settings/reconfigure/schema"
+          : "/onboarding/email-provider",
+      },
     });
-  }),
-
-  // Not on the real controller — dev-only helper so the select-project
-  // page has something to list without a real backend.
-  http.get("*/api/v1/oauth/supabase/mock-projects", () => {
-    return HttpResponse.json(MOCK_PROJECTS);
   }),
 ];

@@ -35,10 +35,6 @@ export function EmailProviderForm({ connectedTable }: EmailProviderFormProps) {
     mode: "onBlur",
     defaultValues: { apiKey: "", fromAddress: "" },
   });
-  // useWatch (not the imperative watch() from useForm) — it's the isolated,
-  // memoizable subscription react-hook-form recommends for reading a field
-  // value during render, which is what the "check {fromAddress}" line below
-  // needs.
   const fromAddress = useWatch({ control, name: "fromAddress" });
 
   async function onSubmit(values: EmailProviderFormValues) {
@@ -74,19 +70,19 @@ export function EmailProviderForm({ connectedTable }: EmailProviderFormProps) {
         )}
       </div>
 
-      <div className="flex flex-col gap-[10px]">
+      <div className="flex flex-col gap-2.5">
         <div className="text-[16px] font-semibold text-[#ECECF1]">
           Now connect your email provider
         </div>
         <div className="flex gap-2">
-          <div className="flex-1 flex items-center gap-2 box-border bg-[#18130E] border border-orange rounded-lg px-3 py-[11px]">
-            <div className="w-[15px] h-[15px] rounded-[4px] bg-white flex items-center justify-center text-[10px] font-semibold text-[#0B0B0F] shrink-0">
+          <div className="flex-1 flex items-center gap-2 box-border bg-[#18130E] border border-orange rounded-lg px-3 py-2.75">
+            <div className="w-3.75 h-3.75 rounded-sm bg-white flex items-center justify-center text-2.5 font-semibold text-[#0B0B0F] shrink-0">
               R
             </div>
             <div className="text-[13px] font-medium text-[#ECECF1]">Resend</div>
           </div>
-          <div className="flex-1 flex items-center gap-2 box-border bg-[#101015] border border-[#26262F] rounded-lg px-3 py-[11px] opacity-55 cursor-not-allowed">
-            <div className="w-[15px] h-[15px] rounded-[4px] bg-[#26262F] flex items-center justify-center font-mono text-[9px] font-semibold text-[#8E8E9A] shrink-0">
+          <div className="flex-1 flex items-center gap-2 box-border bg-[#101015] border border-[#26262F] rounded-lg px-3 py-2.75 opacity-55 cursor-not-allowed">
+            <div className="w-3.75 h-3.75 rounded-sm bg-[#26262F] flex items-center justify-center font-mono text-[9px] font-semibold text-[#8E8E9A] shrink-0">
               S
             </div>
             <div className="flex-1 text-[13px] font-medium text-[#8E8E9A]">
@@ -104,7 +100,7 @@ export function EmailProviderForm({ connectedTable }: EmailProviderFormProps) {
         className="flex flex-col gap-3"
         noValidate
       >
-        <div className="flex flex-col gap-[6px]">
+        <div className="flex flex-col gap-1.5">
           <div className="text-[12px] font-medium text-[#8E8E9A]">
             Resend API key
           </div>
@@ -113,7 +109,7 @@ export function EmailProviderForm({ connectedTable }: EmailProviderFormProps) {
             disabled={state !== "idle"}
             placeholder="re_…"
             aria-invalid={!!errors.apiKey}
-            className="box-border bg-[#101015] border border-[#26262F] focus:border-orange rounded-lg px-3 py-[10px] font-mono text-[13px] text-[#ECECF1] placeholder:text-[#4C4C58] outline-none disabled:opacity-60 aria-invalid:border-[#E5726A]"
+            className="box-border bg-[#101015] border border-[#26262F] focus:border-orange rounded-lg px-3 py-2.5 font-mono text-[13px] text-[#ECECF1] placeholder:text-[#4C4C58] outline-none disabled:opacity-60 aria-invalid:border-[#E5726A]"
           />
           {errors.apiKey && (
             <p className="text-[12px] text-[#E5726A]">
@@ -122,7 +118,7 @@ export function EmailProviderForm({ connectedTable }: EmailProviderFormProps) {
           )}
         </div>
 
-        <div className="flex flex-col gap-[6px]">
+        <div className="flex flex-col gap-1.5">
           <div className="text-[12px] font-medium text-[#8E8E9A]">
             Send from
           </div>
@@ -131,7 +127,7 @@ export function EmailProviderForm({ connectedTable }: EmailProviderFormProps) {
             disabled={state !== "idle"}
             placeholder="you@yourdomain.com"
             aria-invalid={!!errors.fromAddress}
-            className="box-border bg-[#101015] border border-[#26262F] focus:border-orange rounded-lg px-3 py-[10px] font-mono text-[13px] text-[#ECECF1] placeholder:text-[#4C4C58] outline-none disabled:opacity-60 aria-invalid:border-[#E5726A]"
+            className="box-border bg-[#101015] border border-[#26262F] focus:border-orange rounded-lg px-3 py-2.5 font-mono text-[13px] text-[#ECECF1] placeholder:text-[#4C4C58] outline-none disabled:opacity-60 aria-invalid:border-[#E5726A]"
           />
           {errors.fromAddress && (
             <p className="text-[12px] text-[#E5726A]">
@@ -164,18 +160,18 @@ export function EmailProviderForm({ connectedTable }: EmailProviderFormProps) {
         {state === "idle" && (
           <button
             type="submit"
-            className="flex items-center justify-center bg-[#17171D] hover:not-disabled:border-[#3A3A46] border border-[#26262F] text-[#ECECF1] text-[13px] font-medium rounded-lg py-[11px] cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex items-center justify-center bg-[#17171D] hover:not-disabled:border-[#3A3A46] border border-[#26262F] text-[#ECECF1] text-[13px] font-medium rounded-lg py-2.75 cursor-pointer transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             Connect Resend
           </button>
         )}
 
         {state === "idle" && (
-          <div className="flex flex-col gap-[10px] box-border bg-[#101015] border border-[#1E1E26] rounded-lg p-3 mt-[6px]">
+          <div className="flex flex-col gap-2.5 box-border bg-[#101015] border border-[#1E1E26] rounded-lg p-3 mt-1.5">
             <button
               type="button"
               onClick={() => setHelpOpen((v) => !v)}
-              className="flex items-center gap-[6px] text-[12.5px] text-[#CBCBD4] font-medium cursor-pointer"
+              className="flex items-center gap-1.5 text-[12.5px] text-[#CBCBD4] font-medium cursor-pointer"
             >
               <svg
                 width="8"

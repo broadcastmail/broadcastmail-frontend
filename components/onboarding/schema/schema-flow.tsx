@@ -3,26 +3,58 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api/client";
+import { selectTable } from "@/lib/api/schema";
 import { ONBOARDING_STEP_PATH } from "@/lib/onboarding-steps";
-import type { SchemaIntrospectionResult } from "@/lib/types/onboarding";
+import type { DetectedSchema, SchemaIntrospectionResult } from "@/lib/types/onboarding";
 import { CheckIcon } from "@/components/onboarding/check-icon";
 import { Spinner } from "@/components/onboarding/spinner";
 import { SchemaColumns } from "./schema-columns";
 import { SchemaSqlPreview } from "./schema-sql-preview";
 import { SchemaTablePicker } from "./schema-table-picker";
 
-// "columns" -> pick which columns to grant
-// "review"  -> recap + real POST /schema/confirm
-// "fallback" -> confirm failed; manual SQL + POST /schema/test
-type View = "columns" | "review" | "fallback";
+// table-picker -> columns -> review -> (fallback if confirm fails)
+type View = "table-picker" | "columns" | "review" | "fallback";
 
-export function SchemaFlow({ schema }: { schema: SchemaIntrospectionResult | null }) {
+async function defaultConfirm(columnNames: string[]): Promise<void> {
+  await apiClient.post("/api/v1/onboarding/schema/confirm", { columnNames });
+}
+
+function defaultSelectTable(candidate: DetectedSchema) {
+  return selectTable(candidate.userTableSchema, candidate.userTableName);
+}
+
+interface SchemaFlowProps {
+  schema: SchemaIntrospectionResult | null;
+  /** Defaults to advancing the onboarding wizard; edit dialogs override it. */
+  onComplete?: () => void;
+  /** Defaults to onboarding's own confirm endpoint; reconnect dialogs override it. */
+  onConfirm?: (columnNames: string[]) => Promise<void>;
+  /** Defaults to onboarding's selectTable; reconnect dialogs PATCH the table directly. */
+  onSelectTable?: (
+    candidate: DetectedSchema,
+  ) => Promise<{ status: "DETECTED" } & DetectedSchema>;
+}
+
+export function SchemaFlow({
+  schema,
+  onComplete,
+  onConfirm = defaultConfirm,
+  onSelectTable = defaultSelectTable,
+}: SchemaFlowProps) {
   const router = useRouter();
-  const [view, setView] = useState<View>("columns");
+  // `resolved` is the DETECTED schema every other view reads from.
+  const [resolved, setResolved] = useState<
+    Extract<SchemaIntrospectionResult, { status: "DETECTED" }> | null
+  >(schema?.status === "DETECTED" ? schema : null);
+  const [view, setView] = useState<View>(
+    schema?.status === "MULTIPLE_CANDIDATES" ? "table-picker" : "columns",
+  );
+  const [pickingTable, setPickingTable] = useState(false);
+  const [pickError, setPickError] = useState<string | null>(null);
   const [enabled, setEnabled] = useState<Set<string>>(
     () =>
       new Set(
-        (schema?.filterableColumns ?? [])
+        (schema?.status === "DETECTED" ? schema.filterableColumns : [])
           .filter((c) => c.enabled)
           .map((c) => c.columnName),
       ),
@@ -30,8 +62,14 @@ export function SchemaFlow({ schema }: { schema: SchemaIntrospectionResult | nul
   const [running, setRunning] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testError, setTestError] = useState<string | null>(null);
+  const [savingColumns, setSavingColumns] = useState(false);
 
-  const hasTable = !!schema?.userTableName;
+  const hasTable = resolved !== null;
+
+  function finish() {
+    if (onComplete) onComplete();
+    else router.push(ONBOARDING_STEP_PATH.CONNECT_RESEND);
+  }
 
   function toggle(name: string) {
     setEnabled((prev) => {
@@ -42,16 +80,41 @@ export function SchemaFlow({ schema }: { schema: SchemaIntrospectionResult | nul
     });
   }
 
+  async function pickTable(candidate: DetectedSchema) {
+    setPickingTable(true);
+    setPickError(null);
+    try {
+      const result = await onSelectTable(candidate);
+      setResolved(result);
+      setEnabled(new Set(result.filterableColumns.filter((c) => c.enabled).map((c) => c.columnName)));
+      setView("columns");
+    } catch {
+      setPickError("Couldn't select that table — try again.");
+    } finally {
+      setPickingTable(false);
+    }
+  }
+
+  // Applies the moment this step is done, not deferred to the review screen.
+  async function confirmColumns() {
+    if (savingColumns) return;
+    setSavingColumns(true);
+    try {
+      await onConfirm(Array.from(enabled));
+      setView("review");
+    } finally {
+      setSavingColumns(false);
+    }
+  }
+
+  // Re-sends the same values confirmColumns already saved; can still fail here.
   async function runSetup() {
     setRunning(true);
     try {
-      await apiClient.post("/api/v1/onboarding/schema/confirm", {
-        columnNames: Array.from(enabled),
-      });
-      router.push(ONBOARDING_STEP_PATH.CONNECT_RESEND);
+      await onConfirm(Array.from(enabled));
+      finish();
     } catch {
-      // The Management API failed to execute the grant SQL on the user's
-      // project — drop to the manual fallback.
+      // Grant SQL failed to execute — drop to the manual fallback.
       setView("fallback");
     } finally {
       setRunning(false);
@@ -63,7 +126,7 @@ export function SchemaFlow({ schema }: { schema: SchemaIntrospectionResult | nul
     setTestError(null);
     try {
       await apiClient.post("/api/v1/onboarding/schema/test");
-      router.push(ONBOARDING_STEP_PATH.CONNECT_RESEND);
+      finish();
     } catch {
       setTestError(
         "Connection failed — check that you ran the SQL correctly",
@@ -87,7 +150,42 @@ export function SchemaFlow({ schema }: { schema: SchemaIntrospectionResult | nul
     );
   }
 
-  if (view === "fallback") {
+  if (view === "table-picker" && schema.status === "MULTIPLE_CANDIDATES") {
+    return (
+      <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-[22px] font-semibold text-[#ECECF1] tracking-[-0.02em]">
+            We found more than one table
+          </h1>
+          <p className="text-[13.5px] leading-[1.55] text-[#8E8E9A] text-pretty">
+            Pick the one that holds your user data — we only access what you
+            select.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-2">
+          {schema.candidates.map((c) => (
+            <button
+              key={`${c.userTableSchema}.${c.userTableName}`}
+              type="button"
+              onClick={() => pickTable(c)}
+              disabled={pickingTable}
+              className="flex items-center justify-between box-border bg-[#101015] border border-[#26262F] hover:border-[#3A3A46] rounded-lg px-3 py-[10px] font-mono text-[13px] text-[#ECECF1] cursor-pointer transition-colors disabled:cursor-wait disabled:opacity-60"
+            >
+              {c.userTableSchema}.{c.userTableName}
+              {pickingTable && (
+                <Spinner className="border-[#3A3A46] border-t-[#ECECF1]" />
+              )}
+            </button>
+          ))}
+        </div>
+
+        {pickError && <p className="text-[12.5px] text-[#E5726A]">{pickError}</p>}
+      </div>
+    );
+  }
+
+  if (view === "fallback" && resolved) {
     return (
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-2">
@@ -102,11 +200,11 @@ export function SchemaFlow({ schema }: { schema: SchemaIntrospectionResult | nul
 
         <SchemaSqlPreview
           password="[password set by BroadcastMail]"
-          userIdColumn={schema.userIdColumn}
-          emailColumn={schema.emailColumn}
+          userIdColumn={resolved.userIdColumn}
+          authColumns={resolved.authColumns.map((c) => c.columnName)}
           grantsTable={hasTable}
-          tableSchema={schema.userTableSchema}
-          tableName={schema.userTableName}
+          tableSchema={resolved.userTableSchema}
+          tableName={resolved.userTableName}
         />
 
         <div className="flex flex-col gap-2 text-[12.5px] leading-[1.5] text-[#8E8E9A]">
@@ -143,7 +241,7 @@ export function SchemaFlow({ schema }: { schema: SchemaIntrospectionResult | nul
     );
   }
 
-  if (view === "review") {
+  if (view === "review" && resolved) {
     return (
       <div className="flex flex-col gap-5">
         <div className="flex flex-col gap-2">
@@ -153,7 +251,7 @@ export function SchemaFlow({ schema }: { schema: SchemaIntrospectionResult | nul
           <p className="text-[13.5px] leading-[1.55] text-[#8E8E9A]">
             Here&apos;s exactly what we&apos;ll run on{" "}
             <span className="font-mono text-[12.5px] text-[#CBCBD4]">
-              {schema.userTableSchema}.{schema.userTableName}
+              {resolved.userTableSchema}.{resolved.userTableName}
             </span>
             :
           </p>
@@ -161,17 +259,17 @@ export function SchemaFlow({ schema }: { schema: SchemaIntrospectionResult | nul
 
         <SchemaSqlPreview
           password="[auto-generated]"
-          userIdColumn={schema.userIdColumn}
-          emailColumn={schema.emailColumn}
+          userIdColumn={resolved.userIdColumn}
+          authColumns={resolved.authColumns.map((c) => c.columnName)}
           grantsTable={hasTable}
-          tableSchema={schema.userTableSchema}
-          tableName={schema.userTableName}
+          tableSchema={resolved.userTableSchema}
+          tableName={resolved.userTableName}
         />
 
         <div className="flex flex-col gap-[7px] text-[12.5px] leading-[1.5] text-[#8E8E9A]">
           <div className="flex gap-2 items-baseline">
             <CheckIcon />
-            Can only read email addresses — nothing else
+            Can only read what you selected — nothing else
           </div>
           <div className="flex gap-2 items-baseline">
             <CheckIcon />
@@ -201,7 +299,7 @@ export function SchemaFlow({ schema }: { schema: SchemaIntrospectionResult | nul
             {running && (
               <Spinner className="border-[rgba(18,12,6,0.3)] border-t-[#120C06]" />
             )}
-            {running ? "Running setup…" : `Run setup on ${schema.userTableSchema}.${schema.userTableName}`}
+            {running ? "Running setup…" : `Run setup on ${resolved.userTableSchema}.${resolved.userTableName}`}
           </button>
         </div>
       </div>
@@ -212,22 +310,22 @@ export function SchemaFlow({ schema }: { schema: SchemaIntrospectionResult | nul
     <div className="flex flex-col gap-5">
       <div className="flex flex-col gap-2">
         <h1 className="text-[22px] font-semibold text-[#ECECF1] tracking-[-0.02em]">
-          {hasTable ? "We found your users" : "We couldn't detect your schema automatically"}
+          {resolved ? "We found your users" : "We couldn't detect your schema automatically"}
         </h1>
         <p className="text-[13.5px] leading-[1.55] text-[#8E8E9A] text-pretty">
-          {hasTable
+          {resolved
             ? "Confirm the columns BroadcastMail can read. We'll only access what you select."
             : "Pick the table that holds your user data — we only access what you select."}
         </p>
       </div>
 
-      {hasTable ? (
+      {resolved ? (
         <SchemaColumns
-          schema={schema.userTableSchema}
-          table={schema.userTableName}
-          userIdColumn={schema.userIdColumn}
-          emailColumn={schema.emailColumn}
-          columns={schema.filterableColumns}
+          schema={resolved.userTableSchema}
+          table={resolved.userTableName}
+          userIdColumn={resolved.userIdColumn}
+          authColumns={resolved.authColumns}
+          columns={resolved.filterableColumns}
           enabled={enabled}
           onToggle={toggle}
         />
@@ -237,11 +335,14 @@ export function SchemaFlow({ schema }: { schema: SchemaIntrospectionResult | nul
 
       <button
         type="button"
-        onClick={() => setView("review")}
-        disabled={!hasTable}
-        className="flex items-center justify-center bg-orange hover:bg-orange-hover text-[#120C06] text-[14px] font-semibold rounded-lg py-3 cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+        onClick={confirmColumns}
+        disabled={!hasTable || savingColumns}
+        className="flex items-center justify-center gap-2 bg-orange hover:not-disabled:bg-orange-hover text-[#120C06] text-[14px] font-semibold rounded-lg py-3 cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
       >
-        Continue
+        {savingColumns && (
+          <Spinner className="border-[rgba(18,12,6,0.3)] border-t-[#120C06]" />
+        )}
+        {savingColumns ? "Saving…" : "Continue"}
       </button>
     </div>
   );

@@ -12,10 +12,7 @@ interface SpinnerProps {
 export function Spinner({ size = 13, className }: SpinnerProps) {
   return (
     <div
-      className={cn(
-        "shrink-0 rounded-full animate-bmspin border-2",
-        className,
-      )}
+      className={cn("shrink-0 rounded-full animate-bmspin border-2", className)}
       style={{ width: size, height: size }}
       aria-hidden="true"
     />

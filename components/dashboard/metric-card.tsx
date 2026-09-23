@@ -1,9 +1,12 @@
+import { cn } from "@/lib/utils";
+
 interface MetricCardProps {
   label: string;
   value: string | number;
   limit?: number;
   supporting?: string;
   progress?: number;
+  progressColor?: "orange" | "danger";
 }
 
 export function MetricCard({
@@ -12,6 +15,7 @@ export function MetricCard({
   limit,
   supporting,
   progress,
+  progressColor = "orange",
 }: MetricCardProps) {
   return (
     <div
@@ -35,9 +39,12 @@ export function MetricCard({
         <div className="text-[12px] text-text-dim">{supporting}</div>
       )}
       {progress !== undefined && (
-        <div className="h-[4px] rounded-[2px] bg-white/8 overflow-hidden">
+        <div className="h-1 rounded-xs bg-white/8 overflow-hidden">
           <div
-            className="h-full bg-orange rounded-[2px] transition-all duration-700 ease-out"
+            className={cn(
+              "h-full rounded-xs transition-all duration-700 ease-out",
+              progressColor === "danger" ? "bg-status-failed" : "bg-orange",
+            )}
             style={{ width: `${progress}%` }}
           />
         </div>

@@ -5,7 +5,7 @@ import { useState } from "react";
 interface SchemaSqlPreviewProps {
   password: string;
   userIdColumn: string;
-  emailColumn: string;
+  authColumns: string[];
   grantsTable: boolean;
   tableSchema: string;
   tableName: string;
@@ -19,12 +19,13 @@ interface SchemaSqlPreviewProps {
 export function SchemaSqlPreview({
   password,
   userIdColumn,
-  emailColumn,
+  authColumns,
   grantsTable,
   tableSchema,
   tableName,
 }: SchemaSqlPreviewProps) {
   const [copied, setCopied] = useState(false);
+  const authColumnList = [userIdColumn, "email", ...authColumns].join(", ");
 
   const plainText = [
     `CREATE ROLE broadcastmail_reader`,
@@ -32,7 +33,7 @@ export function SchemaSqlPreview({
     ``,
     `GRANT USAGE ON SCHEMA auth`,
     `  TO broadcastmail_reader;`,
-    `GRANT SELECT (${userIdColumn}, ${emailColumn}, created_at)`,
+    `GRANT SELECT (${authColumnList})`,
     `  ON auth.users TO broadcastmail_reader;`,
     ...(grantsTable
       ? [
@@ -72,7 +73,7 @@ export function SchemaSqlPreview({
         <span className="text-orange">GRANT USAGE ON SCHEMA</span> auth{"\n"}
         {"  "}
         <span className="text-orange">TO</span> broadcastmail_reader;{"\n"}
-        <span className="text-orange">GRANT SELECT</span> ({userIdColumn}, {emailColumn}, created_at){"\n"}
+        <span className="text-orange">GRANT SELECT</span> ({authColumnList}){"\n"}
         {"  "}
         <span className="text-orange">ON</span> auth.users{" "}
         <span className="text-orange">TO</span> broadcastmail_reader;

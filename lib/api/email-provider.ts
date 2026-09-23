@@ -3,16 +3,24 @@ import {
   emailProviderSchema,
   type EmailProviderFormValues,
 } from "@/lib/schemas/onboarding";
+import type { AccountEmailProviderInfo } from "@/mocks/fixtures";
 
-// Deliberately kept out of lib/api/onboarding.ts: that module also holds
-// the cookie-forwarding server reads (server-cookies.ts -> next/headers),
-// which the App Router refuses to bundle into a Client Component. This
-// function is called from the "use client" email-provider form, so it
-// needs its own module with no server-only imports in its graph.
-//
+// No server-only imports — called from the "use client" email-provider form.
 export async function connectEmailProvider(
   values: EmailProviderFormValues,
 ): Promise<void> {
   const payload = emailProviderSchema.parse(values);
   await apiClient.post("/api/v1/onboarding/email-provider", payload);
+}
+
+// Client-safe counterpart to lib/api/account.ts's server version.
+export async function getAccountEmailProvider(): Promise<AccountEmailProviderInfo | null> {
+  try {
+    const res = await apiClient.get<AccountEmailProviderInfo>(
+      "/api/v1/account/email-provider",
+    );
+    return res.data;
+  } catch {
+    return null;
+  }
 }

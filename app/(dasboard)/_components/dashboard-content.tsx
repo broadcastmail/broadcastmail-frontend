@@ -1,22 +1,12 @@
 import { DashboardHero } from "./dashboard-hero";
 import { CampaignSection } from "./campaign-section";
 import { NewCampaignButton } from "@/components/dashboard/new-campaign-button";
+import { ConnectRequiredEmptyState } from "@/components/dashboard/connect-required-empty-state";
 import { apiClient } from "@/lib/api/client";
 import { forwardedCookieHeader } from "@/lib/api/server-cookies";
+import { getAccountMetrics } from "@/lib/api/account";
+import { getSchemaIntrospection } from "@/lib/api/onboarding";
 import type { Campaign } from "@/mocks/fixtures";
-import { AccountMetricsResponse } from "@/lib/types/metrics";
-
-async function getMetrics(): Promise<AccountMetricsResponse | null> {
-  try {
-    const res = await apiClient.get<AccountMetricsResponse>(
-      "/api/v1/account/metrics",
-      { headers: { Cookie: await forwardedCookieHeader() } },
-    );
-    return res.data;
-  } catch {
-    return null;
-  }
-}
 
 async function getCampaigns(): Promise<Campaign[]> {
   try {
@@ -30,10 +20,18 @@ async function getCampaigns(): Promise<Campaign[]> {
 }
 
 export async function DashboardContent() {
-  const [metrics, campaigns] = await Promise.all([
-    getMetrics(),
+  const [metrics, campaigns, schema] = await Promise.all([
+    getAccountMetrics(),
     getCampaigns(),
+    getSchemaIntrospection(),
   ]);
+
+  // Project + table detected — what a campaign actually needs to load a
+  // real audience (recipients always resolve via auth.user_emails, not a
+  // per-connection email column). Filterable columns are a refinement on
+  // top (see components/settings/supabase-section.tsx's own edit split) —
+  // not required just to send, so they don't gate this.
+  const configured = schema?.status === "DETECTED";
 
   return (
     <div className="flex-1 overflow-y-auto px-8 py-9 flex flex-col gap-7">
@@ -46,19 +44,25 @@ export async function DashboardContent() {
             Send to segments of your Supabase users.
           </p>
         </div>
-        <NewCampaignButton />
+        <NewCampaignButton configured={configured} />
       </header>
-      {metrics && (
-        <DashboardHero
-          audience={metrics.audience}
-          audienceSource={metrics.audienceSource}
-          totalDeliveredThisMonth={metrics.totalDeliveredThisMonth}
-          deliveryRate={metrics.deliveryRate}
-          recipientsUsedThisPeriod={metrics.recipientsUsedThisPeriod}
-          recipientsLimit={metrics.recipientsLimit}
-        />
+      {configured ? (
+        <>
+          {metrics && (
+            <DashboardHero
+              audience={metrics.audience}
+              audienceSource={metrics.audienceSource}
+              totalDeliveredThisMonth={metrics.totalDeliveredThisMonth}
+              deliveryRate={metrics.deliveryRate}
+              recipientsUsedThisPeriod={metrics.recipientsUsedThisPeriod}
+              recipientsLimit={metrics.recipientsLimit}
+            />
+          )}
+          <CampaignSection campaigns={campaigns} />
+        </>
+      ) : (
+        <ConnectRequiredEmptyState />
       )}
-      <CampaignSection campaigns={campaigns} />
     </div>
   );
 }
