@@ -13,24 +13,16 @@ interface CampaignSectionProps {
   campaigns: Campaign[];
 }
 
-// The initial `campaigns` prop is server-rendered (see dashboard-content.tsx)
-// and can't include anything created since — a campaign the "New campaign"
-// button creates is POSTed from the browser, which a Server Component's
-// fetch can't see (see app/dashboard/campaigns/[id]/page.tsx for the full
-// reasoning). Session drafts (this browser tab's own in-memory record of
-// what it created — see lib/campaigns/session-drafts.ts) are merged in on
-// top so a just-created draft shows up immediately instead of only after a
-// refresh happens to re-render the server list.
-export function CampaignSection({ campaigns }: CampaignSectionProps) {
+export function CampaignSection({ campaigns }: Readonly<CampaignSectionProps>) {
   const sessionDrafts = useSyncExternalStore(
     subscribeSessionDrafts,
     getSessionDrafts,
     getSessionDrafts,
   );
-  const sessionIds = new Set(sessionDrafts.map((c) => c.id));
+  const serverIds = new Set(campaigns.map((c) => c.id));
   const merged = [
-    ...sessionDrafts,
-    ...campaigns.filter((c) => !sessionIds.has(c.id)),
+    ...campaigns,
+    ...sessionDrafts.filter((c) => !serverIds.has(c.id)),
   ];
 
   return (

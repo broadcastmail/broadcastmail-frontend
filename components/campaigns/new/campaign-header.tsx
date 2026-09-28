@@ -5,6 +5,7 @@ import { Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Spinner } from "@/components/onboarding/spinner";
 import { campaignNameSchema } from "@/lib/schemas/campaigns";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface CampaignHeaderProps {
   name: string;
@@ -14,7 +15,16 @@ interface CampaignHeaderProps {
   sending: boolean;
   sendError: boolean;
   canSend: boolean;
+  /** False until Settings has a Resend "from" address — see
+   *  email-provider-section.tsx. Sending is blocked either way once
+   *  `canSend` is false; this just lets the button's tooltip say *why* when
+   *  the reason is specifically "Resend isn't connected" rather than an
+   *  empty field. */
+  resendConfigured: boolean;
   onSend: () => void;
+  saving: boolean;
+  saveError: boolean;
+  onSave: () => void;
 }
 
 export function CampaignHeader({
@@ -25,8 +35,12 @@ export function CampaignHeader({
   sending,
   sendError,
   canSend,
+  resendConfigured,
   onSend,
-}: CampaignHeaderProps) {
+  saving,
+  saveError,
+  onSave,
+}: Readonly<CampaignHeaderProps>) {
   const [editingName, setEditingName] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -60,7 +74,6 @@ export function CampaignHeader({
               onChange={(e) => onNameChange(e.target.value)}
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
-              autoFocus
               aria-invalid={!!nameError}
               className="w-80 max-w-full box-border bg-[#101015] border border-[#3A3A46] aria-invalid:border-[#E5726A] rounded-lg px-2.5 py-1.5 text-[20px] font-semibold text-[#ECECF1] tracking-[-0.02em] outline-none"
             />
@@ -92,30 +105,74 @@ export function CampaignHeader({
           </div>
           <button
             type="button"
-            onClick={onSend}
-            disabled={!active}
-            className={cn(
-              "flex items-center justify-center gap-1.75 box-border text-[13.5px] font-semibold rounded-lg px-4 py-2.5 whitespace-nowrap transition-colors",
-              active
-                ? "bg-orange hover:bg-orange-hover text-[#120C06] cursor-pointer"
-                : "bg-[#17171D] text-[#4C4C58] cursor-not-allowed",
-            )}
+            onClick={onSave}
+            disabled={saving || sending}
+            title="Save progress now, without waiting for autosave"
+            className="flex items-center justify-center gap-1.5 box-border bg-transparent border border-white/[0.13] text-[#B9B9C2] text-[13px] font-medium rounded-lg px-3.5 py-2.5 whitespace-nowrap transition-colors hover:border-white/[0.24] hover:text-text-primary disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
           >
-            {sending && (
-              <Spinner
-                size={12}
-                className="border-[#120C06]/30 border-t-[#120C06]"
-              />
+            {saving && (
+              <Spinner size={11} className="border-[#26262F] border-t-orange" />
             )}
-            {sending ? "Sending…" : "Send campaign"}
+            {saving ? "Saving…" : "Save"}
           </button>
+          <SendCampaignButton
+            active={active}
+            sending={sending}
+            resendConfigured={resendConfigured}
+            onSend={onSend}
+          />
         </div>
         {sendError && (
           <div className="text-[12.5px] text-[#E5726A] text-right">
             Couldn&apos;t start your campaign. Try again.
           </div>
         )}
+        {saveError && !sendError && (
+          <div className="text-[12.5px] text-[#E5726A] text-right">
+            Couldn&apos;t save. Try again.
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+interface SendCampaignButtonProps {
+  active: boolean;
+  sending: boolean;
+  resendConfigured: boolean;
+  onSend: () => void;
+}
+
+function SendCampaignButton({ active, sending, resendConfigured, onSend }: Readonly<SendCampaignButtonProps>) {
+  const button = (
+    <button
+      type="button"
+      onClick={onSend}
+      aria-disabled={!active}
+      className={cn(
+        "flex items-center justify-center gap-1.75 box-border text-[13.5px] font-semibold rounded-lg px-4 py-2.5 whitespace-nowrap transition-colors",
+        active
+          ? "bg-orange hover:bg-orange-hover text-[#120C06] cursor-pointer"
+          : "bg-[#17171D] text-[#4C4C58] cursor-not-allowed",
+      )}
+    >
+      {sending && (
+        <Spinner size={12} className="border-[#120C06]/30 border-t-[#120C06]" />
+      )}
+      {sending ? "Sending…" : "Send campaign"}
+    </button>
+  );
+
+  // Only explain the specific "Resend isn't connected" reason — other
+  // disabled states (missing fields, already sending) are self-evident
+  // from the rest of the header, same as before this got a tooltip.
+  if (resendConfigured || sending) return button;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
+      <TooltipContent>Connect Resend in Settings before sending</TooltipContent>
+    </Tooltip>
   );
 }

@@ -6,8 +6,6 @@ import { Check } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
-// Structural only — no default look baked in beyond a sane focus ring.
-// Callers own the box/tick styling via className so each usage can match
 function Checkbox({
   className,
   ...props

@@ -10,17 +10,26 @@ import { AudienceFilters } from "./audience-filters";
 import { PreviewPane } from "./preview-pane";
 import { SendingOverlay, type SendStep } from "./sending-overlay";
 import { Spinner } from "@/components/onboarding/spinner";
-import { getCampaign, updateCampaign, confirmCampaign } from "@/lib/api/campaigns";
+import { getCampaign, confirmCampaign } from "@/lib/api/campaigns";
 import { updateSessionDraft } from "@/lib/campaigns/session-drafts";
+import { useCampaignAutosave } from "@/lib/campaigns/use-campaign-autosave";
 import { wrapEmailShell } from "@/lib/campaigns/email-html";
 import { sanitizeHtmlSource } from "@/lib/campaigns/sanitize-html-source";
 import { EMPTY_DOC, jsonToHtml } from "@/lib/campaigns/editor-extensions";
 import { cn } from "@/lib/utils";
 import {
+  AUDIENCE_OPS,
   estimateRecipientCount,
   TOTAL_AUDIENCE,
+  type AudienceColumn,
   type AudienceFilter,
 } from "@/lib/campaigns/audience";
+import { getReconnectSchema } from "@/lib/api/schema";
+import { getAccountEmailProvider } from "@/lib/api/email-provider";
+import {
+  useUnsavedChangesGuard,
+  UNSAVED_CHANGES_MESSAGE,
+} from "@/lib/navigation/unsaved-changes-guard";
 
 type ContentSource = "visual" | "import";
 
@@ -60,17 +69,34 @@ export function NewCampaignComposer({ campaignId }: NewCampaignComposerProps) {
   const [recipientCount, setRecipientCount] = useState(TOTAL_AUDIENCE);
   const [sendStep, setSendStep] = useState<SendStep | null>(null);
   const [sendError, setSendError] = useState(false);
+  // Whatever Settings currently has enabled for filtering — see
+  // audience-filters.tsx, which used to offer a hardcoded column list
+  // regardless of this. Empty until the fetch below resolves, same as a
+  // genuinely unconfigured account; "Add filter" reads that correctly
+  // either way.
+  const [audienceColumns, setAudienceColumns] = useState<AudienceColumn[]>([]);
+  // Whether Settings has a Resend "from" address set — sending is only
+  // possible once it does (see email-provider-section.tsx). Fetched
+  // alongside everything else below; false (not just "unknown") while
+  // loading, same as audienceColumns above.
+  const [resendConfigured, setResendConfigured] = useState(false);
 
-  // Loads the draft this id points to. Runs client-side, not as a
-  // server-fetched prop — see app/dashboard/campaigns/[id]/page.tsx for
-  // why (the draft was created via a client-side POST, so it only exists
-  // in the browser's mock worker). The editor mounts once loading clears,
-  // so it seeds from real data on its one and only mount instead of
-  // needing to be re-hydrated after the fact.
+  // Loads the draft this id points to, and the account's filterable
+  // columns alongside it. Both run client-side, not as server-fetched
+  // props — see app/dashboard/campaigns/[id]/page.tsx for why (the draft
+  // was created via a client-side POST, so it only exists in the
+  // browser's mock worker; the schema fetch just rides along in the same
+  // effect for one loading gate instead of two). The editor mounts once
+  // loading clears, so it seeds from real data on its one and only mount
+  // instead of needing to be re-hydrated after the fact.
   useEffect(() => {
     let cancelled = false;
-    getCampaign(campaignId)
-      .then((campaign) => {
+    Promise.all([
+      getCampaign(campaignId),
+      getReconnectSchema(),
+      getAccountEmailProvider(),
+    ])
+      .then(([campaign, schema, emailProvider]) => {
         if (cancelled) return;
         setName(campaign.name);
         setSubject(campaign.subject);
@@ -80,6 +106,12 @@ export function NewCampaignComposer({ campaignId }: NewCampaignComposerProps) {
         } else if (campaign.source === "import" && campaign.bodyHtmlImported) {
           setImportedHtml(campaign.bodyHtmlImported);
         }
+        setAudienceColumns(
+          (schema?.status === "DETECTED" ? schema.filterableColumns : [])
+            .filter((c) => c.enabled)
+            .map((c) => ({ name: c.columnName, type: c.columnType as AudienceColumn["type"] })),
+        );
+        setResendConfigured(!!emailProvider?.fromAddress);
       })
       .catch(() => {})
       .finally(() => {
@@ -90,42 +122,55 @@ export function NewCampaignComposer({ campaignId }: NewCampaignComposerProps) {
     };
   }, [campaignId]);
 
-  // Best-effort autosave: PATCHes the draft a second after edits settle, so
-  // the persisted record keeps up with what's on screen rather than only
-  // ever being written at final send. Silent on failure — there's no
-  // dedicated resume UI yet to surface a retry into (see campaignId prop
-  // doc above), so this is a head start for when one exists, not something
-  // the user needs to babysit today. Skips the very first render (nothing
-  // has changed yet, and the initial load effect above may still be
-  // filling these in).
-  const skipFirstRef = useRef(true);
-  const autosaveRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Debounced autosave, plus the manual Save button's imperative escape
+  // hatch — see use-campaign-autosave.ts for why the debounce is the one
+  // effect worth keeping here and everything else (this button included)
+  // is a direct call instead.
+  const { saving, dirty, saveNow } = useCampaignAutosave({
+    campaignId,
+    enabled: !loading,
+    name,
+    subject,
+    source,
+    visualBodyJson: visualBody.json,
+    importedHtml,
+  });
+  const [saveError, setSaveError] = useState(false);
+
+  // Two independent guards for the same gap — the debounced autosave
+  // silently drops whatever's pending if you leave within its ~1s delay
+  // (see use-campaign-autosave.ts). Neither is a substitute for the other:
+  // `beforeunload` is the only way to catch a tab close, refresh, or typed
+  // URL (all real page unloads Next's router never sees), while the top
+  // nav's links are in-app client-side navigations that never unload the
+  // page at all, so they're guarded separately via onNavigate — see
+  // nav-item.tsx and unsaved-changes-guard.tsx. Both are genuine syncs with
+  // a browser/external mechanism, the same exception debouncing itself
+  // already relies on.
+  const { setHasUnsavedChanges } = useUnsavedChangesGuard();
   useEffect(() => {
-    if (loading) return;
-    if (skipFirstRef.current) {
-      skipFirstRef.current = false;
-      return;
+    setHasUnsavedChanges(dirty);
+    return () => setHasUnsavedChanges(false);
+  }, [dirty, setHasUnsavedChanges]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    function handleBeforeUnload(e: BeforeUnloadEvent) {
+      e.preventDefault();
+      e.returnValue = UNSAVED_CHANGES_MESSAGE;
     }
-    clearTimeout(autosaveRef.current);
-    autosaveRef.current = setTimeout(() => {
-      updateCampaign(
-        campaignId,
-        source === "visual"
-          ? { name, subject, source: "visual", bodyJson: visualBody.json }
-          : {
-              name,
-              subject,
-              source: "import",
-              bodyHtmlImported: sanitizeHtmlSource(importedHtml),
-            },
-      ).catch(() => {});
-      // Keeps the dashboard's session-local copy (see session-drafts.ts)
-      // showing the current name/subject instead of "Untitled campaign"
-      // if the user leaves before this draft is ever sent.
-      updateSessionDraft(campaignId, { name, subject });
-    }, 1000);
-    return () => clearTimeout(autosaveRef.current);
-  }, [loading, campaignId, name, subject, source, visualBody, importedHtml]);
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [dirty]);
+
+  async function handleSave() {
+    setSaveError(false);
+    try {
+      await saveNow();
+    } catch {
+      setSaveError(true);
+    }
+  }
 
   // Debounces the simulated recipient recount. No cleanup effect: React 18
   // silently drops a setState from an unmounted component, so a stray
@@ -150,10 +195,20 @@ export function NewCampaignComposer({ campaignId }: NewCampaignComposerProps) {
   }
 
   function handleAddFilter() {
+    // AudienceFilters already hides this action once audienceColumns is
+    // empty — this guard is just defense against a stale click racing a
+    // reconfigure that just cleared it.
+    if (!audienceColumns.length) return;
+    const first = audienceColumns[0];
     setFilters((prev) => {
       const next = [
         ...prev,
-        { id: nextFilterId(), column: "plan", op: "eq", value: "" },
+        {
+          id: nextFilterId(),
+          column: first.name,
+          op: AUDIENCE_OPS[first.type][0][0],
+          value: first.type === "boolean" ? "true" : "",
+        },
       ];
       recount(next);
       return next;
@@ -183,36 +238,22 @@ export function NewCampaignComposer({ campaignId }: NewCampaignComposerProps) {
     source === "visual" ? visualBody.html : sanitizeHtmlSource(importedHtml);
   const previewDoc = useMemo(() => wrapEmailShell(previewHtml), [previewHtml]);
   const ready = !!name.trim() && !!subject.trim() && !!previewHtml.trim();
+  const canSend = ready && resendConfigured;
 
   async function handleSend() {
-    if (sendStep || !ready) return;
+    if (sendStep || !canSend) return;
     setSendError(false);
     setSendStep("saving");
     try {
       // Save whatever's on screen right now — not relying on the debounced
-      // autosave above to have already caught up — then confirm. Both
-      // calls act on the campaign the button created, never create a new
-      // one.
-      await updateCampaign(
-        campaignId,
-        source === "visual"
-          ? { name, subject, source: "visual", bodyJson: visualBody.json }
-          : // Sanitized again right here, immediately before the request
-            // goes out — not just relying on the pass already applied for
-            // the live preview above. See sanitize-html-source.ts for why
-            // re-sanitizing at each boundary (not just once) is the point,
-            // and why the API sanitizing again on receipt is still
-            // required regardless — this pass is bypassable by anyone
-            // calling the API directly.
-            {
-              name,
-              subject,
-              source: "import",
-              bodyHtmlImported: sanitizeHtmlSource(importedHtml),
-            },
-      );
+      // autosave to have already caught up — then confirm. Both act on the
+      // campaign the button created, never create a new one. Reuses the
+      // same saveNow() the manual Save button calls (see
+      // use-campaign-autosave.ts), so this doesn't re-derive the
+      // visual/import payload split a third time.
+      await saveNow();
       setSendStep("sending");
-      await confirmCampaign(campaignId);
+      await confirmCampaign(campaignId, recipientCount);
       setSendStep("done");
       // Same reasoning as the autosave effect above — reflect the final
       // name/subject/status in the dashboard's session-local copy so it
@@ -245,8 +286,12 @@ export function NewCampaignComposer({ campaignId }: NewCampaignComposerProps) {
         recipientCount={recipientCount}
         sending={sendStep !== null}
         sendError={sendError}
-        canSend={ready}
+        canSend={canSend}
+        resendConfigured={resendConfigured}
         onSend={handleSend}
+        saving={saving}
+        saveError={saveError}
+        onSave={handleSave}
       />
 
       <div className="flex-1 min-h-0 flex">
@@ -284,6 +329,7 @@ export function NewCampaignComposer({ campaignId }: NewCampaignComposerProps) {
 
           <div className="h-px bg-white/[0.07]" />
           <AudienceFilters
+            columns={audienceColumns}
             filters={filters}
             counting={counting}
             recipientCount={recipientCount}

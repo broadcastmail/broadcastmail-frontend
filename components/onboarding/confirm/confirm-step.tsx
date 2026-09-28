@@ -46,7 +46,7 @@ export function ConfirmStep({
         </p>
       </div>
 
-      <div className="flex flex-col gap-[9px] bg-[#0F1A15] border border-[#1E3A2E] rounded-lg p-3 text-[12.5px] text-[#8E8E9A]">
+      <div className="flex flex-col gap-2.25 bg-[#0F1A15] border border-[#1E3A2E] rounded-lg p-3 text-[12.5px] text-[#8E8E9A]">
         <div className="flex gap-2 items-baseline">
           <CheckIcon size={11} />
           Users synced from auth.users

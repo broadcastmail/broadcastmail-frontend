@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { Mail, Settings, CreditCard, ChevronDown, LogOut } from "lucide-react";
 import { NavItem } from "./nav-item";
 import { useRouter } from "next/navigation";
-import { apiClient } from "@/lib/api/client";
+import { logout } from "@/lib/api/auth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -86,7 +86,7 @@ function UserMenu({ email }: { email: string }) {
   const initial = email.charAt(0).toUpperCase();
 
   async function handleLogout() {
-    await apiClient.post("/api/v1/auth/logout");
+    await logout();
     // Leaving "/dashboard" entirely — its layout would just redirect back
     // to "/" anyway once the session cookie is gone, so go there directly.
     router.push("/");

@@ -19,6 +19,28 @@ export const HAS_ACCOUNT_COOKIE = "bm_mock_has_account";
 export const ONBOARDING_PROJECT_COOKIE = "bm_mock_project_ref";
 export const ONBOARDING_SCHEMA_COOKIE = "bm_mock_schema_confirmed";
 export const ONBOARDING_RESEND_COOKIE = "bm_mock_resend_from";
+// Which of the two mock table shapes (SCHEMA_META vs SECOND_CANDIDATE_META,
+// keyed by table name) is currently selected — set by /schema/select-table
+// (onboarding/reconfigure candidate picker) and PATCH /connections/table
+// (reconnect's direct table change). Without this, currentSchema() had no
+// way to remember a non-default pick and always reconstructed SCHEMA_META.
+export const ONBOARDING_TABLE_COOKIE = "bm_mock_selected_table";
+// Comma-joined column names — deliberately a cookie (real HTTP state, sent
+// on every request from whichever browser tab set it) rather than an
+// in-memory module variable in the handler: this app's mock backend runs
+// as two separate MSW instances (mocks/node.ts for server-rendered pages,
+// mocks/browser.ts for everything fetched client-side — see the seeding
+// note in mocks/handlers/campaigns.ts), which don't share memory. A plain
+// variable mutated by the browser's POST would never be visible to the
+// Node instance a subsequent router.refresh() re-renders against; a cookie
+// is.
+export const ONBOARDING_COLUMNS_COOKIE = "bm_mock_enabled_columns";
+// Dev-only stand-in for billing tier — a real backend would derive this
+// from a subscription record, not a cookie. Kept alongside the query-param
+// hook it started as (?plan=pro on /api/v1/me, still honored — see
+// auth.ts) so a saved scenario (mocks/scenarios.ts) can set it directly
+// instead of every caller needing to remember to append that param.
+export const PLAN_COOKIE = "bm_mock_plan";
 
 function cookieHeader(request: Request): string {
   // Browsers strip the Cookie header from Request objects exposed to

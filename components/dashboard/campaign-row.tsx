@@ -34,7 +34,7 @@ function formatSentDate(sentAt: string): string {
   return format(date, "MMM d");
 }
 
-export function CampaignRow({ campaign }: CampaignRowProps) {
+export function CampaignRow({ campaign }: Readonly<CampaignRowProps>) {
   const router = useRouter();
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -44,37 +44,29 @@ export function CampaignRow({ campaign }: CampaignRowProps) {
 
   if (deleted) return null;
 
-  // Only a DRAFT has anywhere to go back to right now — there's no
-  // sent-campaign detail/analytics view yet, just the composer, and
-  // reopening it for a campaign that's already sending/sent would be
-  // misleading (it'd look editable when it isn't).
-  const resumable = campaign.status === "DRAFT";
-
   return (
     <>
       <TableRow
-        className={`border-b border-white/[0.045] hover:bg-white/[0.035] transition-all duration-[240ms] relative group ${resumable ? "cursor-pointer" : "cursor-default"} ${fading ? "opacity-0" : "opacity-100"}`}
+        className={`border-b border-white/4.5 hover:bg-white/[0.035] transition-all duration-240 relative group cursor-pointer ${fading ? "opacity-0" : "opacity-100"}`}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
-        onClick={() => {
-          if (resumable) router.push(`/dashboard/campaigns/${campaign.id}`);
-        }}
+        onClick={() => router.push(`/dashboard/campaigns/${campaign.id}`)}
       >
-        <TableCell className="py-[11px] px-[18px] text-[14px] text-text-primary w-full min-w-[140px]">
+        <TableCell className="py-2.75 px-4.5 text-[14px] text-text-primary w-full min-w-35">
           {campaign.name}
         </TableCell>
         <TableCell className="py-3 px-4.5 w-24">
           <StatusBadge status={campaign.status} />
         </TableCell>
-        <TableCell className="py-3 px-4.5 font-mono text-[13px] text-text-muted tabular-nums text-right w-[76px]">
+        <TableCell className="py-3 px-4.5 font-mono text-[13px] text-text-muted tabular-nums text-right w-19">
           {campaign.recipientCount?.toLocaleString() ?? "—"}
         </TableCell>
-        <TableCell className="py-3 px-4.5 font-mono text-[13px] text-text-muted tabular-nums text-right w-[60px]">
-          {campaign.deliveredCount && campaign.recipientCount
-            ? `${((campaign.deliveredCount / campaign.recipientCount) * 100).toFixed(1)}%`
+        <TableCell className="py-3 px-4.5 font-mono text-[13px] text-text-muted tabular-nums text-right w-15">
+          {campaign.openedCount && campaign.recipientCount
+            ? `${((campaign.openedCount / campaign.recipientCount) * 100).toFixed(1)}%`
             : "—"}
         </TableCell>
-        <TableCell className="py-3 px-4.5 font-mono text-[12.5px] text-text-dim tabular-nums text-right w-[76px]">
+        <TableCell className="py-3 px-4.5 font-mono text-[12.5px] text-text-dim tabular-nums text-right w-19">
           {campaign.sentAt ? formatSentDate(campaign.sentAt) : "—"}
         </TableCell>
         <TableCell className="w-8 px-2">
@@ -82,7 +74,7 @@ export function CampaignRow({ campaign }: CampaignRowProps) {
             <DropdownMenuTrigger asChild>
               <button
                 onClick={(e) => e.stopPropagation()}
-                className={`p-1.5 rounded-md transition-all text-text-muted hover:text-text-primary hover:bg-white/[0.06] ${hovered || menuOpen ? "opacity-100" : "opacity-0"}`}
+                className={`p-1.5 rounded-md transition-all text-text-muted hover:text-text-primary hover:bg-white/6 ${hovered || menuOpen ? "opacity-100" : "opacity-0"}`}
               >
                 <svg
                   width="14"
@@ -99,11 +91,14 @@ export function CampaignRow({ campaign }: CampaignRowProps) {
             <DropdownMenuContent
               align="end"
               sideOffset={4}
-              className="bg-surface border border-(--color-border) rounded-[8px] p-1 shadow-lg min-w-0 w-auto"
+              className="bg-surface border border-(--color-border) rounded-lg p-1 shadow-lg min-w-0 w-auto"
             >
               {campaign.status === "DRAFT" && (
                 <DropdownMenuItem
-                  onClick={() => setDialogOpen(true)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDialogOpen(true);
+                  }}
                   className="flex items-center gap-2 px-2.25 py-1.75 text-[13px] text-status-failed hover:bg-status-failed-bg rounded-[5px] cursor-pointer whitespace-nowrap"
                 >
                   <Trash2 size={12} />

@@ -4,6 +4,7 @@ import { campaignHandlers } from "./handlers/campaigns";
 import { authHandlers } from "./handlers/auth";
 import { onboardingHandlers } from "./handlers/onboarding";
 import { oauthHandlers } from "./handlers/oauth";
+import { connectionHandlers } from "./handlers/connections";
 
 export const server = setupServer(
   ...authHandlers,
@@ -11,4 +12,5 @@ export const server = setupServer(
   ...campaignHandlers,
   ...onboardingHandlers,
   ...oauthHandlers,
+  ...connectionHandlers,
 );

@@ -26,6 +26,8 @@
 
   --animate-bmpulse: bmpulse 2s ease-in-out infinite;
   --animate-bmspin: bmspin 0.75s linear infinite;
+  --animate-bmshimmer: bmshimmer 1.5s linear infinite;
+  --animate-bmbar: bmbar 1.6s ease-in-out infinite;
 
   @keyframes bmpulse {
     0%,
@@ -40,6 +42,26 @@
   @keyframes bmspin {
     to {
       transform: rotate(360deg);
+    }
+  }
+
+  /* Stat-card skeleton fill (campaign-detail stat-cards.tsx) */
+  @keyframes bmshimmer {
+    0% {
+      background-position: -220px 0;
+    }
+    100% {
+      background-position: 220px 0;
+    }
+  }
+
+  /* Indeterminate resolving progress bar (campaign-detail detail-header.tsx) */
+  @keyframes bmbar {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(340%);
     }
   }
 }
