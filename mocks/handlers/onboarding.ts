@@ -8,6 +8,7 @@ import {
   ONBOARDING_SCHEMA_COOKIE,
   ONBOARDING_RESEND_COOKIE,
   ONBOARDING_COLUMNS_COOKIE,
+  ONBOARDING_TABLE_COOKIE,
   hasCookie,
   getCookie,
   setCookie,
@@ -53,6 +54,15 @@ function withEnabled(columns: typeof SCHEMA_COLUMNS, enabled: Set<string>) {
   return columns.map((c) => ({ ...c, enabled: enabled.has(c.columnName) }));
 }
 
+export function selectedTable(
+  request: Request,
+): [typeof SCHEMA_META, typeof SCHEMA_COLUMNS] {
+  const tableName = getCookie(request, ONBOARDING_TABLE_COOKIE);
+  return tableName === SECOND_CANDIDATE_META.userTableName
+    ? [SECOND_CANDIDATE_META, SECOND_CANDIDATE_COLUMNS]
+    : [SCHEMA_META, SCHEMA_COLUMNS];
+}
+
 export function detected(meta: typeof SCHEMA_META, columns: typeof SCHEMA_COLUMNS, enabled: Set<string>) {
   return {
     status: "DETECTED" as const,
@@ -80,7 +90,8 @@ export function currentSchema(request: Request) {
 
   const raw = getCookie(request, ONBOARDING_COLUMNS_COOKIE);
   const enabled = new Set(raw !== null ? raw.split(",").filter(Boolean) : []);
-  return detected(SCHEMA_META, SCHEMA_COLUMNS, enabled);
+  const [meta, columns] = selectedTable(request);
+  return detected(meta, columns, enabled);
 }
 
 export const onboardingHandlers = [
@@ -98,19 +109,21 @@ export const onboardingHandlers = [
     const projectRef = getCookie(request, ONBOARDING_PROJECT_COOKIE);
     const schemaConfirmed = hasCookie(request, ONBOARDING_SCHEMA_COOKIE);
     const fromAddress = getCookie(request, ONBOARDING_RESEND_COOKIE);
+    const [confirmedMeta] = selectedTable(request);
 
-    const step = !schemaConfirmed
-      ? "CONFIRM_SCHEMA"
-      : !fromAddress
+    const conectionOptions = !fromAddress
         ? "CONNECT_RESEND"
         : "CONFIRM_ACCOUNT";
+    const step = !schemaConfirmed
+      ? "CONFIRM_SCHEMA"
+      :conectionOptions
 
     return HttpResponse.json({
       step,
       projectRef,
       projectUrl: projectRef ? `https://${projectRef}.supabase.co` : null,
       confirmedTable: schemaConfirmed
-        ? `${SCHEMA_META.userTableSchema}.${SCHEMA_META.userTableName}`
+        ? `${confirmedMeta.userTableSchema}.${confirmedMeta.userTableName}`
         : null,
       fromAddress,
     });
@@ -132,12 +145,14 @@ export const onboardingHandlers = [
       body?.userTableSchema === SECOND_CANDIDATE_META.userTableSchema &&
       body?.userTableName === SECOND_CANDIDATE_META.userTableName
     ) {
+      setCookie(ONBOARDING_TABLE_COOKIE, SECOND_CANDIDATE_META.userTableName, 60 * 30);
       return HttpResponse.json(detected(SECOND_CANDIDATE_META, SECOND_CANDIDATE_COLUMNS, new Set()));
     }
     if (
       body?.userTableSchema === SCHEMA_META.userTableSchema &&
       body?.userTableName === SCHEMA_META.userTableName
     ) {
+      setCookie(ONBOARDING_TABLE_COOKIE, SCHEMA_META.userTableName, 60 * 30);
       return HttpResponse.json(detected(SCHEMA_META, SCHEMA_COLUMNS, new Set()));
     }
     return new HttpResponse(null, { status: 400 });

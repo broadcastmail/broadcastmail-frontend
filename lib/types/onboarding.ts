@@ -43,3 +43,10 @@ export type SchemaIntrospectionResult =
   | ({ status: "DETECTED" } & DetectedSchema)
   | { status: "MULTIPLE_CANDIDATES"; candidates: DetectedSchema[] }
   | { status: "NOT_DETECTED" };
+
+// The DETECTED branch alone — what SchemaFlow's post-selection views read
+// from once a table is resolved.
+export type ResolvedSchema = Extract<
+  SchemaIntrospectionResult,
+  { status: "DETECTED" }
+>;

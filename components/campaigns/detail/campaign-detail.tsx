@@ -23,7 +23,7 @@ interface CampaignDetailProps {
   campaignId: string;
 }
 
-export function CampaignDetail({ campaignId }: CampaignDetailProps) {
+export function CampaignDetail({ campaignId }: Readonly<CampaignDetailProps>) {
   const [campaign, setCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(false);

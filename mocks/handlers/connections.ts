@@ -5,13 +5,23 @@ import {
   ONBOARDING_PROJECT_COOKIE,
   ONBOARDING_SCHEMA_COOKIE,
   ONBOARDING_COLUMNS_COOKIE,
+  ONBOARDING_TABLE_COOKIE,
+  hasCookie,
   setCookie,
   clearCookie,
 } from "../session";
 import { currentSchema } from "./onboarding";
 
-// Mirrors ConnectionController — Settings' own reconfigure (OAuth) and
-// reconnect (no OAuth) endpoints, reusing onboarding.ts's mock cookies.
+
+function confirmedSchema(request: Request) {
+  const schema = currentSchema(request);
+  if (schema?.status === "DETECTED" && !hasCookie(request, ONBOARDING_SCHEMA_COOKIE)) {
+    return { status: "NOT_DETECTED" as const };
+  }
+  return schema;
+}
+
+
 
 export const CONNECTABLE_PROJECTS = [
   { ref: "my-saas-app", name: "my-saas-app", status: "ACTIVE_HEALTHY", userCount: 1204 },
@@ -19,7 +29,6 @@ export const CONNECTABLE_PROJECTS = [
 ];
 
 export const connectionHandlers = [
-  // ── Reconfigure ──────────────────────────────────────────────────────
 
   http.get("*/api/v1/connections/schema", ({ request }) => {
     return HttpResponse.json(currentSchema(request));
@@ -42,14 +51,14 @@ export const connectionHandlers = [
     return new HttpResponse(null, { status: 200 });
   }),
 
-  // ── Reconnect ────────────────────────────────────────────────────────
+  //  Reconnect
 
   http.get("*/api/v1/connections/supabase/projects", () => {
     return HttpResponse.json(CONNECTABLE_PROJECTS);
   }),
 
   http.get("*/api/v1/connections/schema/reconnect", ({ request }) => {
-    return HttpResponse.json(currentSchema(request));
+    return HttpResponse.json(confirmedSchema(request));
   }),
 
   http.patch("*/api/v1/connections/project", async ({ request }) => {
@@ -63,6 +72,7 @@ export const connectionHandlers = [
     // A different project means a different database — reset table/columns.
     setCookie(ONBOARDING_SCHEMA_COOKIE, "", 0);
     setCookie(ONBOARDING_COLUMNS_COOKIE, "", 0);
+    setCookie(ONBOARDING_TABLE_COOKIE, "", 0);
     return new HttpResponse(null, { status: 200 });
   }),
 
@@ -75,7 +85,7 @@ export const connectionHandlers = [
     if (!body?.userTableSchema || !body.userTableName) {
       return new HttpResponse(null, { status: 400 });
     }
-    // A different table means columns need re-confirming.
+    setCookie(ONBOARDING_TABLE_COOKIE, body.userTableName, 60 * 30);
     setCookie(ONBOARDING_SCHEMA_COOKIE, "1", 60 * 30);
     setCookie(ONBOARDING_COLUMNS_COOKIE, "", 0);
     return new HttpResponse(null, { status: 200 });

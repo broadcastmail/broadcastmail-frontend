@@ -13,7 +13,7 @@ interface CampaignSectionProps {
   campaigns: Campaign[];
 }
 
-export function CampaignSection({ campaigns }: CampaignSectionProps) {
+export function CampaignSection({ campaigns }: Readonly<CampaignSectionProps>) {
   const sessionDrafts = useSyncExternalStore(
     subscribeSessionDrafts,
     getSessionDrafts,

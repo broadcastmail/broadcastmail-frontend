@@ -4,7 +4,7 @@ import { Suspense, use, useDeferredValue, useState } from "react";
 import { format } from "date-fns";
 import { Check } from "lucide-react";
 import { getCampaignRecipients } from "@/lib/api/campaigns";
-import type { Campaign, RecipientStatus } from "@/mocks/fixtures";
+import type { Campaign, CampaignRecipient, RecipientStatus } from "@/mocks/fixtures";
 import { Spinner } from "@/components/onboarding/spinner";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +20,10 @@ const TABS: { id: TabId; label: string }[] = [
   { id: "BOUNCED", label: "Bounced" },
 ];
 
-const STATUS_DISPLAY: Record<RecipientStatus, { label: string; className: string }> = {
+const STATUS_DISPLAY: Record<
+  RecipientStatus,
+  { label: string; className: string }
+> = {
   QUEUED: { label: "Pending", className: "text-text-dim" },
   SENT: { label: "Sent", className: "text-text-dim" },
   DELIVERED: { label: "Delivered", className: "text-[#8E8E9A]" },
@@ -30,19 +33,46 @@ const STATUS_DISPLAY: Record<RecipientStatus, { label: string; className: string
   UNSUBSCRIBED: { label: "Unsubscribed", className: "text-text-dim" },
 };
 
+const recipientsPromises = new Map<
+  string,
+  ReturnType<typeof getCampaignRecipients>
+>();
+
+function getRecipientsCached(
+  cacheKey: string,
+  campaignId: string,
+  tab: TabId,
+  page: number,
+) {
+  let promise = recipientsPromises.get(cacheKey);
+  if (!promise) {
+    promise = getCampaignRecipients(campaignId, {
+      status: tab === "ALL" ? undefined : tab,
+      page,
+      size: PAGE_SIZE,
+    });
+    recipientsPromises.set(cacheKey, promise);
+    // Don't cache a failure — let the next render's use() retry the fetch.
+    promise.catch(() => recipientsPromises.delete(cacheKey));
+  }
+  return promise;
+}
+
 interface RecipientTableProps {
   campaignId: string;
   campaign: Campaign;
 }
 
-export function RecipientTable({ campaignId, campaign }: RecipientTableProps) {
+export function RecipientTable({ campaignId, campaign }: Readonly<RecipientTableProps>) {
   const resolving = campaign.status === "RESOLVING";
   const sending = campaign.status === "SENDING";
 
   const [tab, setTab] = useState<TabId>("ALL");
   const [page, setPage] = useState(0);
 
-  const tabs = sending ? [...TABS, { id: "QUEUED" as const, label: "Pending" }] : TABS;
+  const tabs = sending
+    ? [...TABS, { id: "QUEUED" as const, label: "Pending" }]
+    : TABS;
 
   const counts: Record<string, number> = {
     ALL: campaign.recipientCount ?? 0,
@@ -53,13 +83,11 @@ export function RecipientTable({ campaignId, campaign }: RecipientTableProps) {
     QUEUED: Math.max(0, (campaign.recipientCount ?? 0) - campaign.sentCount),
   };
 
-  // Remounting RecipientRows on this key (no effect) is what triggers each
-  // reload — tab/page change, or the campaign's live counts changing.
   // Deferred so old rows stay visible while new ones load, instead of
   // flashing to the fallback on every poll/SSE update.
-  const key = `${tab}-${page}-${campaign.sentCount}-${campaign.deliveredCount}-${campaign.openedCount}-${campaign.failedCount}-${campaign.bouncedCount}`;
-  const deferredKey = useDeferredValue(key);
-  const stale = deferredKey !== key;
+  const cacheKey = `${campaignId}-${tab}-${page}-${campaign.sentCount}-${campaign.deliveredCount}-${campaign.openedCount}-${campaign.failedCount}-${campaign.bouncedCount}`;
+  const deferredCacheKey = useDeferredValue(cacheKey);
+  const stale = deferredCacheKey !== cacheKey;
 
   function selectTab(id: TabId) {
     setTab(id);
@@ -112,7 +140,7 @@ export function RecipientTable({ campaignId, campaign }: RecipientTableProps) {
       <div className={cn("transition-opacity", stale && "opacity-60")}>
         <Suspense fallback={<RowsFallback />}>
           <RecipientRows
-            key={deferredKey}
+            cacheKey={deferredCacheKey}
             campaignId={campaignId}
             tab={tab}
             page={page}
@@ -125,27 +153,29 @@ export function RecipientTable({ campaignId, campaign }: RecipientTableProps) {
 }
 
 interface RecipientRowsProps {
+  cacheKey: string;
   campaignId: string;
   tab: TabId;
   page: number;
   onPageChange: (page: number) => void;
 }
 
-// Fresh instance per parent key change = fresh use()-driven fetch. No
-// effect: calling the fetcher directly in render is correct here because
-// remounting (not re-rendering in place) is what triggers each reload.
-function RecipientRows({ campaignId, tab, page, onPageChange }: RecipientRowsProps) {
+// No remount here — a stable instance reading from the module-level cache
+// above is what makes use() safe against re-renders (and Fast Refresh).
+function RecipientRows({
+  cacheKey,
+  campaignId,
+  tab,
+  page,
+  onPageChange,
+}: Readonly<RecipientRowsProps>) {
   const { content: rows, totalPages } = use(
-    getCampaignRecipients(campaignId, {
-      status: tab === "ALL" ? undefined : tab,
-      page,
-      size: PAGE_SIZE,
-    }),
+    getRecipientsCached(cacheKey, campaignId, tab, page),
   );
 
   return (
     <>
-      {rows.map((r) => {
+      {rows.map((r: CampaignRecipient) => {
         const display = STATUS_DISPLAY[r.status];
         return (
           <div
@@ -155,16 +185,27 @@ function RecipientRows({ campaignId, tab, page, onPageChange }: RecipientRowsPro
             <div className="font-mono text-[12.5px] text-[#CBCBD4] whitespace-nowrap overflow-hidden text-ellipsis">
               {r.email}
             </div>
-            <div className={cn("flex items-center gap-1.5 text-[12.5px]", display.className)}>
+            <div
+              className={cn(
+                "flex items-center gap-1.5 text-[12.5px]",
+                display.className,
+              )}
+            >
               <span className="w-1.25 h-1.25 rounded-full bg-current shrink-0" />
               {display.label}
             </div>
             <div className="font-mono text-[12px] text-[#8E8E9A] tabular-nums">
-              {r.deliveredAt ? format(new Date(r.deliveredAt), "MMM d HH:mm") : "—"}
+              {r.deliveredAt
+                ? format(new Date(r.deliveredAt), "MMM d HH:mm")
+                : "—"}
             </div>
             <div className="flex justify-end">
               {r.status === "OPENED" ? (
-                <Check size={14} className="text-status-sent" strokeWidth={2.5} />
+                <Check
+                  size={14}
+                  className="text-status-sent"
+                  strokeWidth={2.5}
+                />
               ) : (
                 <span className="font-mono text-[12px] text-[#4C4C58]">—</span>
               )}
@@ -187,7 +228,9 @@ function RecipientRows({ campaignId, tab, page, onPageChange }: RecipientRowsPro
           disabled={page === 0}
           onClick={() => onPageChange(Math.max(0, page - 1))}
           className={
-            page > 0 ? "text-[#8E8E9A] cursor-pointer" : "text-[#3A3A46] cursor-default"
+            page > 0
+              ? "text-[#8E8E9A] cursor-pointer"
+              : "text-[#3A3A46] cursor-default"
           }
         >
           ← Previous

@@ -9,7 +9,7 @@ interface AccountSectionProps {
   plan: PlanId;
 }
 
-export function AccountSection({ email, plan }: AccountSectionProps) {
+export function AccountSection({ email, plan }: Readonly<AccountSectionProps>) {
   const isFree = plan === "free";
 
   return (

@@ -40,7 +40,7 @@ export function CampaignHeader({
   saving,
   saveError,
   onSave,
-}: CampaignHeaderProps) {
+}: Readonly<CampaignHeaderProps>) {
   const [editingName, setEditingName] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -74,7 +74,6 @@ export function CampaignHeader({
               onChange={(e) => onNameChange(e.target.value)}
               onBlur={handleBlur}
               onKeyDown={handleKeyDown}
-              autoFocus
               aria-invalid={!!nameError}
               className="w-80 max-w-full box-border bg-[#101015] border border-[#3A3A46] aria-invalid:border-[#E5726A] rounded-lg px-2.5 py-1.5 text-[20px] font-semibold text-[#ECECF1] tracking-[-0.02em] outline-none"
             />
@@ -145,7 +144,7 @@ interface SendCampaignButtonProps {
   onSend: () => void;
 }
 
-function SendCampaignButton({ active, sending, resendConfigured, onSend }: SendCampaignButtonProps) {
+function SendCampaignButton({ active, sending, resendConfigured, onSend }: Readonly<SendCampaignButtonProps>) {
   const button = (
     <button
       type="button"

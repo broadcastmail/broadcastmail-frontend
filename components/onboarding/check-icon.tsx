@@ -12,7 +12,7 @@ export function CheckIcon({
   color = "#4ADE80",
   strokeWidth = 2.5,
   className,
-}: CheckIconProps) {
+}: Readonly<CheckIconProps>) {
   return (
     <svg
       width={size}

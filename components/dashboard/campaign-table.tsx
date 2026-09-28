@@ -12,7 +12,7 @@ interface CampaignTableProps {
   campaigns: Campaign[];
 }
 
-export function CampaignTable({ campaigns }: CampaignTableProps) {
+export function CampaignTable({ campaigns }: Readonly<CampaignTableProps>) {
   return (
     <Table className="w-full">
       <TableHeader>

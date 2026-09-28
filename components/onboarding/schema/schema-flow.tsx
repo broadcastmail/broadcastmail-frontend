@@ -5,12 +5,16 @@ import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/api/client";
 import { selectTable } from "@/lib/api/schema";
 import { ONBOARDING_STEP_PATH } from "@/lib/onboarding-steps";
-import type { DetectedSchema, SchemaIntrospectionResult } from "@/lib/types/onboarding";
-import { CheckIcon } from "@/components/onboarding/check-icon";
-import { Spinner } from "@/components/onboarding/spinner";
-import { SchemaColumns } from "./schema-columns";
-import { SchemaSqlPreview } from "./schema-sql-preview";
-import { SchemaTablePicker } from "./schema-table-picker";
+import type {
+  DetectedSchema,
+  ResolvedSchema,
+  SchemaIntrospectionResult,
+} from "@/lib/types/onboarding";
+import { NoSchemaView } from "./no-schema-view";
+import { TablePickerView } from "./table-picker-view";
+import { FallbackView } from "./fallback-view";
+import { ReviewView } from "./review-view";
+import { ColumnsView } from "./columns-view";
 
 // table-picker -> columns -> review -> (fallback if confirm fails)
 type View = "table-picker" | "columns" | "review" | "fallback";
@@ -35,17 +39,20 @@ interface SchemaFlowProps {
   ) => Promise<{ status: "DETECTED" } & DetectedSchema>;
 }
 
+// Owns the wizard's state and every handler; each step's markup lives in
+// its own sibling view component (SRP — this file only decides which view
+// is showing and what it can do, not how it looks).
 export function SchemaFlow({
   schema,
   onComplete,
   onConfirm = defaultConfirm,
   onSelectTable = defaultSelectTable,
-}: SchemaFlowProps) {
+}: Readonly<SchemaFlowProps>) {
   const router = useRouter();
   // `resolved` is the DETECTED schema every other view reads from.
-  const [resolved, setResolved] = useState<
-    Extract<SchemaIntrospectionResult, { status: "DETECTED" }> | null
-  >(schema?.status === "DETECTED" ? schema : null);
+  const [resolved, setResolved] = useState<ResolvedSchema | null>(
+    schema?.status === "DETECTED" ? schema : null,
+  );
   const [view, setView] = useState<View>(
     schema?.status === "MULTIPLE_CANDIDATES" ? "table-picker" : "columns",
   );
@@ -54,7 +61,10 @@ export function SchemaFlow({
   const [enabled, setEnabled] = useState<Set<string>>(
     () =>
       new Set(
-        (schema?.status === "DETECTED" ? schema.filterableColumns : [])
+        (schema?.status === "DETECTED"
+          ? [...schema.filterableColumns, ...schema.authColumns]
+          : []
+        )
           .filter((c) => c.enabled)
           .map((c) => c.columnName),
       ),
@@ -86,7 +96,13 @@ export function SchemaFlow({
     try {
       const result = await onSelectTable(candidate);
       setResolved(result);
-      setEnabled(new Set(result.filterableColumns.filter((c) => c.enabled).map((c) => c.columnName)));
+      setEnabled(
+        new Set(
+          [...result.filterableColumns, ...result.authColumns]
+            .filter((c) => c.enabled)
+            .map((c) => c.columnName),
+        ),
+      );
       setView("columns");
     } catch {
       setPickError("Couldn't select that table — try again.");
@@ -137,213 +153,54 @@ export function SchemaFlow({
   }
 
   if (!schema) {
-    return (
-      <div className="flex flex-col gap-3">
-        <h1 className="text-[22px] font-semibold text-[#ECECF1] tracking-[-0.02em]">
-          We couldn&apos;t read your database
-        </h1>
-        <p className="text-[13.5px] leading-[1.55] text-[#8E8E9A]">
-          Schema detection failed to return a result. Try reconnecting your
-          Supabase project.
-        </p>
-      </div>
-    );
+    return <NoSchemaView />;
   }
 
   if (view === "table-picker" && schema.status === "MULTIPLE_CANDIDATES") {
     return (
-      <div className="flex flex-col gap-5">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-[22px] font-semibold text-[#ECECF1] tracking-[-0.02em]">
-            We found more than one table
-          </h1>
-          <p className="text-[13.5px] leading-[1.55] text-[#8E8E9A] text-pretty">
-            Pick the one that holds your user data — we only access what you
-            select.
-          </p>
-        </div>
-
-        <div className="flex flex-col gap-2">
-          {schema.candidates.map((c) => (
-            <button
-              key={`${c.userTableSchema}.${c.userTableName}`}
-              type="button"
-              onClick={() => pickTable(c)}
-              disabled={pickingTable}
-              className="flex items-center justify-between box-border bg-[#101015] border border-[#26262F] hover:border-[#3A3A46] rounded-lg px-3 py-[10px] font-mono text-[13px] text-[#ECECF1] cursor-pointer transition-colors disabled:cursor-wait disabled:opacity-60"
-            >
-              {c.userTableSchema}.{c.userTableName}
-              {pickingTable && (
-                <Spinner className="border-[#3A3A46] border-t-[#ECECF1]" />
-              )}
-            </button>
-          ))}
-        </div>
-
-        {pickError && <p className="text-[12.5px] text-[#E5726A]">{pickError}</p>}
-      </div>
+      <TablePickerView
+        candidates={schema.candidates}
+        pickingTable={pickingTable}
+        pickError={pickError}
+        onPick={pickTable}
+      />
     );
   }
 
   if (view === "fallback" && resolved) {
     return (
-      <div className="flex flex-col gap-5">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-[22px] font-semibold text-[#ECECF1] tracking-[-0.02em]">
-            Run one snippet manually
-          </h1>
-          <p className="text-[13.5px] leading-[1.55] text-orange text-pretty">
-            We couldn&apos;t run the setup automatically. It takes 30 seconds
-            by hand:
-          </p>
-        </div>
-
-        <SchemaSqlPreview
-          password="[password set by BroadcastMail]"
-          userIdColumn={resolved.userIdColumn}
-          authColumns={resolved.authColumns.map((c) => c.columnName)}
-          grantsTable={hasTable}
-          tableSchema={resolved.userTableSchema}
-          tableName={resolved.userTableName}
-        />
-
-        <div className="flex flex-col gap-2 text-[12.5px] leading-[1.5] text-[#8E8E9A]">
-          <div className="flex gap-2">
-            <span className="font-mono text-[12px] text-orange">1</span>
-            <span>Copy the snippet above</span>
-          </div>
-          <div className="flex gap-2">
-            <span className="font-mono text-[12px] text-orange">2</span>
-            <span>Open your Supabase project&apos;s SQL editor</span>
-          </div>
-          <div className="flex gap-2">
-            <span className="font-mono text-[12px] text-orange">3</span>
-            <span>Paste, click Run, come back here</span>
-          </div>
-        </div>
-
-        {testError && (
-          <p className="text-[12.5px] text-[#E5726A]">{testError}</p>
-        )}
-
-        <button
-          type="button"
-          onClick={retest}
-          disabled={testing}
-          className="flex items-center justify-center gap-2 bg-orange hover:bg-orange-hover text-[#120C06] text-[14px] font-semibold rounded-lg py-3 cursor-pointer transition-colors disabled:cursor-wait"
-        >
-          {testing && (
-            <Spinner className="border-[rgba(18,12,6,0.3)] border-t-[#120C06]" />
-          )}
-          {testing ? "Testing connection…" : "I've run it — test connection"}
-        </button>
-      </div>
+      <FallbackView
+        resolved={resolved}
+        hasTable={hasTable}
+        enabled={enabled}
+        testing={testing}
+        testError={testError}
+        onRetest={retest}
+      />
     );
   }
 
   if (view === "review" && resolved) {
     return (
-      <div className="flex flex-col gap-5">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-[22px] font-semibold text-[#ECECF1] tracking-[-0.02em]">
-            Set up read-only access
-          </h1>
-          <p className="text-[13.5px] leading-[1.55] text-[#8E8E9A]">
-            Here&apos;s exactly what we&apos;ll run on{" "}
-            <span className="font-mono text-[12.5px] text-[#CBCBD4]">
-              {resolved.userTableSchema}.{resolved.userTableName}
-            </span>
-            :
-          </p>
-        </div>
-
-        <SchemaSqlPreview
-          password="[auto-generated]"
-          userIdColumn={resolved.userIdColumn}
-          authColumns={resolved.authColumns.map((c) => c.columnName)}
-          grantsTable={hasTable}
-          tableSchema={resolved.userTableSchema}
-          tableName={resolved.userTableName}
-        />
-
-        <div className="flex flex-col gap-[7px] text-[12.5px] leading-[1.5] text-[#8E8E9A]">
-          <div className="flex gap-2 items-baseline">
-            <CheckIcon />
-            Can only read what you selected — nothing else
-          </div>
-          <div className="flex gap-2 items-baseline">
-            <CheckIcon />
-            Cannot write, delete, or modify anything
-          </div>
-          <div className="flex gap-2 items-baseline">
-            <CheckIcon />
-            Revoke anytime: <span className="font-mono text-[11.5px] text-[#CBCBD4]">DROP ROLE broadcastmail_reader</span>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-[14px]">
-          <button
-            type="button"
-            onClick={() => setView("columns")}
-            disabled={running}
-            className="text-[13px] text-[#71717D] hover:text-[#8E8E9A] cursor-pointer whitespace-nowrap"
-          >
-            ← Back
-          </button>
-          <button
-            type="button"
-            onClick={runSetup}
-            disabled={running}
-            className="flex-1 flex items-center justify-center gap-2 bg-orange hover:bg-orange-hover text-[#120C06] text-[14px] font-semibold rounded-lg py-3 cursor-pointer transition-colors disabled:cursor-wait"
-          >
-            {running && (
-              <Spinner className="border-[rgba(18,12,6,0.3)] border-t-[#120C06]" />
-            )}
-            {running ? "Running setup…" : `Run setup on ${resolved.userTableSchema}.${resolved.userTableName}`}
-          </button>
-        </div>
-      </div>
+      <ReviewView
+        resolved={resolved}
+        hasTable={hasTable}
+        enabled={enabled}
+        running={running}
+        onBack={() => setView("columns")}
+        onRunSetup={runSetup}
+      />
     );
   }
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-2">
-        <h1 className="text-[22px] font-semibold text-[#ECECF1] tracking-[-0.02em]">
-          {resolved ? "We found your users" : "We couldn't detect your schema automatically"}
-        </h1>
-        <p className="text-[13.5px] leading-[1.55] text-[#8E8E9A] text-pretty">
-          {resolved
-            ? "Confirm the columns BroadcastMail can read. We'll only access what you select."
-            : "Pick the table that holds your user data — we only access what you select."}
-        </p>
-      </div>
-
-      {resolved ? (
-        <SchemaColumns
-          schema={resolved.userTableSchema}
-          table={resolved.userTableName}
-          userIdColumn={resolved.userIdColumn}
-          authColumns={resolved.authColumns}
-          columns={resolved.filterableColumns}
-          enabled={enabled}
-          onToggle={toggle}
-        />
-      ) : (
-        <SchemaTablePicker />
-      )}
-
-      <button
-        type="button"
-        onClick={confirmColumns}
-        disabled={!hasTable || savingColumns}
-        className="flex items-center justify-center gap-2 bg-orange hover:not-disabled:bg-orange-hover text-[#120C06] text-[14px] font-semibold rounded-lg py-3 cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
-      >
-        {savingColumns && (
-          <Spinner className="border-[rgba(18,12,6,0.3)] border-t-[#120C06]" />
-        )}
-        {savingColumns ? "Saving…" : "Continue"}
-      </button>
-    </div>
+    <ColumnsView
+      resolved={resolved}
+      enabled={enabled}
+      onToggle={toggle}
+      hasTable={hasTable}
+      savingColumns={savingColumns}
+      onConfirm={confirmColumns}
+    />
   );
 }

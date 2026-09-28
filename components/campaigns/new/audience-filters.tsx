@@ -42,7 +42,7 @@ export function AudienceFilters({
   onAdd,
   onPatch,
   onRemove,
-}: AudienceFiltersProps) {
+}: Readonly<AudienceFiltersProps>) {
   const matchSummary = counting
     ? "updating…"
     : `${Math.round((recipientCount / TOTAL_AUDIENCE) * 100)}% of your audience`;

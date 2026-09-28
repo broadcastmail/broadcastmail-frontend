@@ -34,7 +34,7 @@ function formatSentDate(sentAt: string): string {
   return format(date, "MMM d");
 }
 
-export function CampaignRow({ campaign }: CampaignRowProps) {
+export function CampaignRow({ campaign }: Readonly<CampaignRowProps>) {
   const router = useRouter();
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 
-export function MSWProvider({ children }: { children: React.ReactNode }) {
+export function MSWProvider({ children }: Readonly<{ children: React.ReactNode }>) {
   const [ready, setReady] = useState(process.env.NODE_ENV !== "development");
 
   useEffect(() => {

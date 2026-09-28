@@ -1,7 +1,8 @@
 "use client";
 
-import { Suspense, use, useMemo } from "react";
+import { Suspense, use } from "react";
 import { getCampaign } from "@/lib/api/campaigns";
+import type { Campaign } from "@/mocks/fixtures";
 import { Spinner } from "@/components/onboarding/spinner";
 import { NewCampaignComposer } from "./new/new-campaign-composer";
 import { CampaignDetail } from "./detail/campaign-detail";
@@ -10,7 +11,19 @@ interface CampaignRouterProps {
   campaignId: string;
 }
 
-export function CampaignRouter({ campaignId }: CampaignRouterProps) {
+const campaignPromises = new Map<string, Promise<Campaign>>();
+
+function getCampaignCached(campaignId: string): Promise<Campaign> {
+  let promise = campaignPromises.get(campaignId);
+  if (!promise) {
+    promise = getCampaign(campaignId);
+    campaignPromises.set(campaignId, promise);
+    promise.catch(() => campaignPromises.delete(campaignId));
+  }
+  return promise;
+}
+
+export function CampaignRouter({ campaignId }: Readonly<CampaignRouterProps>) {
   return (
     <Suspense fallback={<RouterFallback />}>
       <CampaignRouterResolved campaignId={campaignId} />
@@ -19,8 +32,7 @@ export function CampaignRouter({ campaignId }: CampaignRouterProps) {
 }
 
 function CampaignRouterResolved({ campaignId }: CampaignRouterProps) {
-  const campaignPromise = useMemo(() => getCampaign(campaignId), [campaignId]);
-  const campaign = use(campaignPromise);
+  const campaign = use(getCampaignCached(campaignId));
 
   return campaign.status === "DRAFT" ? (
     <NewCampaignComposer campaignId={campaignId} />

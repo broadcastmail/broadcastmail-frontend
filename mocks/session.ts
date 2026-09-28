@@ -19,6 +19,12 @@ export const HAS_ACCOUNT_COOKIE = "bm_mock_has_account";
 export const ONBOARDING_PROJECT_COOKIE = "bm_mock_project_ref";
 export const ONBOARDING_SCHEMA_COOKIE = "bm_mock_schema_confirmed";
 export const ONBOARDING_RESEND_COOKIE = "bm_mock_resend_from";
+// Which of the two mock table shapes (SCHEMA_META vs SECOND_CANDIDATE_META,
+// keyed by table name) is currently selected — set by /schema/select-table
+// (onboarding/reconfigure candidate picker) and PATCH /connections/table
+// (reconnect's direct table change). Without this, currentSchema() had no
+// way to remember a non-default pick and always reconstructed SCHEMA_META.
+export const ONBOARDING_TABLE_COOKIE = "bm_mock_selected_table";
 // Comma-joined column names — deliberately a cookie (real HTTP state, sent
 // on every request from whichever browser tab set it) rather than an
 // in-memory module variable in the handler: this app's mock backend runs
