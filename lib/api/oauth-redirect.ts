@@ -9,5 +9,5 @@ export async function navigateToBackendRedirect(
     window.location.href = res.url;
     return;
   }
-  window.location.href = `${process.env.NEXT_PUBLIC_API_URL}${path}`;
+  window.location.href = `${process.env.NEXT_PUBLIC_API_URL}${path}${devQuery}`;
 }
