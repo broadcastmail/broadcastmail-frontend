@@ -1,6 +1,6 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { Campaign } from "@/mocks/fixtures";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { CampaignTable } from "@/components/dashboard/campaign-table";
@@ -8,12 +8,59 @@ import {
   getSessionDrafts,
   subscribeSessionDrafts,
 } from "@/lib/campaigns/session-drafts";
+import {
+  getLiveStatus,
+  setLiveStatus,
+  subscribeLiveStatus,
+} from "@/lib/campaigns/live-status";
+import type { CampaignStatusEvent } from "@/lib/types/campaigns";
 
 interface CampaignSectionProps {
   campaigns: Campaign[];
 }
 
+// The backend closes this stream (a clean close, not an error) whenever
+// nothing is currently RESOLVING/SENDING — the common case. Retry on a
+// slow interval rather than letting EventSource's default "reconnect
+// immediately" hammer an endpoint that's going to close right back.
+const RECONNECT_MS = 15000;
+
 export function CampaignSection({ campaigns }: Readonly<CampaignSectionProps>) {
+  useEffect(() => {
+    let cancelled = false;
+    let source: EventSource | null = null;
+    let retryTimeout: ReturnType<typeof setTimeout> | undefined;
+
+    function connect() {
+      if (cancelled) return;
+      source = new EventSource("/api/v1/campaigns/status/stream", {
+        withCredentials: true,
+      });
+      source.addEventListener("status", (event) => {
+        const data: CampaignStatusEvent = JSON.parse(
+          (event as MessageEvent<string>).data,
+        );
+        setLiveStatus(data);
+      });
+      source.onerror = () => {
+        source?.close();
+        if (!cancelled) retryTimeout = setTimeout(connect, RECONNECT_MS);
+      };
+    }
+    connect();
+
+    return () => {
+      cancelled = true;
+      source?.close();
+      clearTimeout(retryTimeout);
+    };
+  }, []);
+
+  const liveStatus = useSyncExternalStore(
+    subscribeLiveStatus,
+    getLiveStatus,
+    getLiveStatus,
+  );
   const sessionDrafts = useSyncExternalStore(
     subscribeSessionDrafts,
     getSessionDrafts,
@@ -23,7 +70,20 @@ export function CampaignSection({ campaigns }: Readonly<CampaignSectionProps>) {
   const merged = [
     ...campaigns,
     ...sessionDrafts.filter((c) => !serverIds.has(c.id)),
-  ];
+  ].map((c) => {
+    const live = liveStatus.get(c.id);
+    if (!live) return c;
+    return {
+      ...c,
+      status: live.status,
+      recipientCount: live.recipientsCount,
+      sentCount: live.sentCount,
+      openedCount: live.openedCount,
+      deliveredCount: live.deliveredCount,
+      bouncedCount: live.bouncedCount,
+      failedCount: live.failedCount,
+    };
+  });
 
   return (
     <div className="flex flex-col gap-3">
