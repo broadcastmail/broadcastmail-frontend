@@ -99,10 +99,7 @@ export const onboardingHandlers = [
     if (!hasCookie(request, ONBOARDING_COOKIE)) {
       return HttpResponse.json({
         step: "CONNECT_SUPABASE",
-        projectRef: null,
-        projectUrl: null,
-        confirmedTable: null,
-        fromAddress: null,
+        recapData: { projectRef: null, confirmedTable: null, fromAddress: null },
       });
     }
 
@@ -111,21 +108,23 @@ export const onboardingHandlers = [
     const fromAddress = getCookie(request, ONBOARDING_RESEND_COOKIE);
     const [confirmedMeta] = selectedTable(request);
 
-    const conectionOptions = !fromAddress
+    const onboardingStrategy = !fromAddress
         ? "CONNECT_RESEND"
         : "CONFIRM_ACCOUNT";
     const step = !schemaConfirmed
       ? "CONFIRM_SCHEMA"
-      :conectionOptions
-
+      : onboardingStrategy;
     return HttpResponse.json({
       step,
-      projectRef,
-      projectUrl: projectRef ? `https://${projectRef}.supabase.co` : null,
-      confirmedTable: schemaConfirmed
-        ? `${confirmedMeta.userTableSchema}.${confirmedMeta.userTableName}`
-        : null,
-      fromAddress,
+      // Matches the backend's RecapData.empty() until CONFIRM_ACCOUNT —
+      // real values only actually matter on the recap screen itself.
+      recapData: {
+        projectRef,
+        confirmedTable: schemaConfirmed
+          ? `${confirmedMeta.userTableSchema}.${confirmedMeta.userTableName}`
+          : null,
+        fromAddress,
+      },
     });
   }),
 
@@ -174,7 +173,6 @@ export const onboardingHandlers = [
     return new HttpResponse(null, { status: 200 });
   }),
 
-  // Not on the real controller yet — see schema-flow.tsx's TODO.
   http.post("*/api/v1/onboarding/schema/test", () => {
     setCookie(ONBOARDING_SCHEMA_COOKIE, "1", 60 * 30);
     return new HttpResponse(null, { status: 200 });
