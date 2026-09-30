@@ -8,12 +8,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-// TODO(backend): shown when GET /onboarding/schema comes back without a
-// detected table. The design mock lets you pick a table manually here, but
-// POST /schema/confirm only accepts `columnNames` — there's no way to tell
-// the backend which table to use, so this picker is visual only until an
-// endpoint exists to (a) list candidate tables and (b) accept a table
-// choice. Selecting an option here does not currently do anything.
 const PLACEHOLDER_TABLE_OPTIONS = ["profiles", "customers", "users", "members"];
 
 export function SchemaTablePicker() {

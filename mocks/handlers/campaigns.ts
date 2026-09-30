@@ -6,61 +6,56 @@ import {
   type CampaignRecipient,
   type RecipientStatus,
 } from "../fixtures";
+import type { CampaignStatusEvent } from "@/lib/types/campaigns";
 
-// Every campaign the UI can ever be pointed at — real drafts created
-// through the composer *and* the handful of seed campaigns generated below
-// to make a fresh session's dashboard look populated — lives in this map.
-// Earlier this only held real drafts and padded the list with throwaway
-// random fakes generated fresh on every GET; that meant clicking one of
-// those rows (most of the table, in a fresh session) hit GET /campaigns/:id
-// with an id `store` didn't recognize, which re-rolled an *entirely new*
-// random campaign under the same id — different data, and ~1-in-6 odds of
-// landing on DRAFT. Persisting everything here, once, is what makes "click
-// a row" reliably reopen the same campaign you saw in the table. It only
-// lives as long as the current dev session/MSW worker.
+function isTerminalStatus(status: Campaign["status"]): boolean {
+  return status === "SENT" || status === "FAILED" || status === "PARTIALLY_FAILED";
+}
+
+const SSE_HEADERS = {
+  "Content-Type": "text/event-stream",
+  "Cache-Control": "no-cache",
+  Connection: "keep-alive",
+};
+
+const sseEncoder = new TextEncoder();
+
+
+function encodeStatusEvent(campaign: Campaign): Uint8Array {
+  const event: CampaignStatusEvent = {
+    id: campaign.id,
+    status: campaign.status,
+    recipientsCount: campaign.recipientCount,
+    sentCount: campaign.sentCount,
+    openedCount: campaign.openedCount,
+    deliveredCount: campaign.deliveredCount,
+    bouncedCount: campaign.bouncedCount,
+    failedCount: campaign.failedCount,
+  };
+  return sseEncoder.encode(`event: status\ndata: ${JSON.stringify(event)}\n\n`);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+
 const store = new Map<string, Campaign>();
 
-// ---------------------------------------------------------------------------
-// Send-lifecycle simulation
-//
-// Once a draft is confirmed, this fakes the RESOLVING → SENDING →
-// SENT/PARTIALLY_FAILED/FAILED lifecycle the real worker (broadcastmail-worker,
-// ResolutionJob/OutboxProcessor) drives asynchronously — derived purely from
-// elapsed wall-clock time so it works the same whether the campaign-detail
-// page is polling live or you reload it five minutes later. Once the
-// lifecycle reaches a terminal state it's frozen into `store`/`recipients`
-// (see freeze() below) so a retry action has a stable list to mutate.
-//
-// SENT vs PARTIALLY_FAILED is never pre-chosen — it's derived from whether
-// any recipient actually ended up FAILED/BOUNCED once everything's settled,
-// so "Sent" reliably means every recipient got it; nothing else sets it.
-// ---------------------------------------------------------------------------
 
 const RESOLVE_MS = 3000;
 const SEND_MS = 7000;
 
 interface SimState {
   confirmedAt: number;
-  // Whether *resolution itself* failed — a dead end, no recipients ever
-  // generated. Anything else derives SENT/PARTIALLY_FAILED from the
-  // recipient list once it's done sending (see resolveCampaign below).
   resolutionFailed: boolean;
-  // Full, final recipient list with a scheduled reveal offset — "reveal" as
-  // in when it stops showing as QUEUED and starts showing its real outcome,
-  // spreading the SENDING phase out instead of it resolving in one jump.
   recipients: (CampaignRecipient & { revealOffsetMs: number })[];
   frozen: boolean;
 }
 
 const sims = new Map<string, SimState>();
 
-// Math.random() has no seeding API and is never reproducible across JS
-// engines — this app's mock backend actually runs as *two* separate MSW
-// instances (mocks/node.ts for server-rendered pages, mocks/browser.ts for
-// everything fetched client-side; see the seeding block near the bottom of
-// this file for why that matters), so every random draw the seed data
-// depends on goes through faker instead, which can be seeded identically in
-// both places.
+
 function chance(probability: number): boolean {
   return faker.number.float({ min: 0, max: 1 }) < probability;
 }
@@ -136,7 +131,7 @@ function withRevealTimes(
   recipients: SimState["recipients"],
   confirmedAt: number,
 ): CampaignRecipient[] {
-  const sentAt = confirmedAt + RESOLVE_MS;
+  const sentAt = confirmedAt +RESOLVE_MS;
   return recipients.map(({ revealOffsetMs, ...r }) => {
     const at = new Date(sentAt + revealOffsetMs).toISOString();
     return {
@@ -287,30 +282,6 @@ function resolveRecipients(id: string): CampaignRecipient[] {
   });
 }
 
-// ---------------------------------------------------------------------------
-// Seed data — generated once, on module load, so a fresh session's
-// dashboard isn't empty. Every seed goes through `store`/`sims` exactly
-// like a real campaign (see seedTerminalSimulation above), so clicking one
-// behaves identically to clicking something you actually created: same id
-// every time, real recipients in the detail table, working retry actions.
-//
-// This module is loaded into *two* separate MSW instances with two
-// separate module graphs — mocks/node.ts (the Node process, backing every
-// server-rendered page) and mocks/browser.ts (the browser's mock worker,
-// backing every client-side fetch). Each evaluates this file's top level
-// independently, so an ordinarily-random seeding loop here would produce
-// two different sets of demo campaigns with two different sets of ids: the
-// dashboard table (server-rendered, Node's set) would show one campaign,
-// and clicking into it (client-side fetch, the browser's set) would find a
-// different id entirely and fall back to fabricating something random on
-// the spot — which is exactly the "status changes when I click it" bug
-// this replaced. Seeding faker with a fixed value before generating (and
-// routing every random decision the seed data depends on through faker via
-// chance() above, never bare Math.random() — see its comment) makes both
-// instances compute the *identical* set, ids included. Reset back to a
-// random seed right after, so nothing downstream of this block —
-// real confirms, real retries, every other fixture — becomes deterministic.
-// ---------------------------------------------------------------------------
 
 type SeedStatus = "DRAFT" | "SENT" | "PARTIALLY_FAILED" | "FAILED";
 
@@ -388,6 +359,54 @@ export const campaignHandlers = [
     return HttpResponse.json(resolveCampaign(id));
   }),
 
+  http.get("*/api/v1/campaigns/:id/status/stream", ({ params }) => {
+    const id = params.id as string;
+    let cancelled = false;
+    const stream = new ReadableStream({
+      async start(controller) {
+        while (!cancelled) {
+          const campaign = resolveCampaign(id);
+          controller.enqueue(encodeStatusEvent(campaign));
+          if (isTerminalStatus(campaign.status)) {
+            controller.close();
+            return;
+          }
+          await sleep(2000);
+        }
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    return new HttpResponse(stream, { headers: SSE_HEADERS });
+  }),
+
+  http.get("*/api/v1/campaigns/status/stream", () => {
+    let cancelled = false;
+    const stream = new ReadableStream({
+      async start(controller) {
+        while (!cancelled) {
+          const active = [...store.keys()]
+            .map(resolveCampaign)
+            .filter((c) => c.status === "RESOLVING" || c.status === "SENDING");
+          if (active.length === 0) {
+            controller.close();
+            return;
+          }
+          for (const campaign of active) {
+            if (cancelled) return;
+            controller.enqueue(encodeStatusEvent(campaign));
+          }
+          await sleep(2000);
+        }
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+    return new HttpResponse(stream, { headers: SSE_HEADERS });
+  }),
+
   http.post("*/api/v1/campaigns", async ({ request }) => {
     await delay(500);
     const body = (await request.json()) as Partial<Campaign>;
@@ -401,10 +420,6 @@ export const campaignHandlers = [
       bouncedCount: 0,
       failedCount: 0,
       sentAt: null,
-      // Actually now, not fakeCampaign()'s random "sometime in the last 60
-      // days" default — otherwise a brand-new draft could sort anywhere in
-      // the dashboard list instead of at the top (the list is sorted by
-      // createdAt desc).
       createdAt: new Date().toISOString(),
     });
     store.set(campaign.id, campaign);
@@ -454,11 +469,7 @@ export const campaignHandlers = [
     return new HttpResponse(null, { status: 202 });
   }),
 
-  // Dead-end retry: a campaign whose *resolution* failed (status FAILED, no
-  // recipients ever generated) gets a fresh attempt from scratch.
-  // Real-backend TODO: no equivalent endpoint exists yet — this would mirror
-  // CampaignConfirmService.confirmCampaign (reset status to RESOLVING,
-  // re-enqueue a ResolutionJob) but starting from FAILED instead of DRAFT.
+
   http.post("*/api/v1/campaigns/:id/retry", async ({ params }) => {
     await delay(600);
     const id = params.id as string;
@@ -468,14 +479,6 @@ export const campaignHandlers = [
     return new HttpResponse(null, { status: 202 });
   }),
 
-  // Re-attempts delivery to just the recipients currently FAILED/BOUNCED on
-  // an otherwise-terminal campaign.
-  // Real-backend TODO: no equivalent endpoint exists yet. The data model is
-  // already there (CampaignRecipientRepository has findByCampaignIdAndStatus
-  // and deleteFailedBatch, just nothing that re-queues) — this would flip
-  // those rows back to QUEUED so OutboxProcessor/EmailSendService pick them
-  // up again, then update Campaign.failedCount/bouncedCount/deliveredCount
-  // as each one resolves.
   http.post(
     "*/api/v1/campaigns/:id/recipients/retry-failed",
     async ({ params }) => {

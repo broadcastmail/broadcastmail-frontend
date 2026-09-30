@@ -68,11 +68,7 @@ export async function getCampaignRecipients(
   return res.data;
 }
 
-// Real-backend TODO: neither endpoint below exists on the API yet — see the
-// note left in mocks/handlers/campaigns.ts for what each would need.
 
-/** Dead-end retry — re-runs resolution + send from scratch for a campaign
- *  whose *resolution* failed (status FAILED, no recipients ever generated). */
 export async function retryCampaign(id: string): Promise<void> {
   await apiClient.post(`/api/v1/campaigns/${id}/retry`);
 }

@@ -174,7 +174,6 @@ export const onboardingHandlers = [
     return new HttpResponse(null, { status: 200 });
   }),
 
-  // Not on the real controller yet — see schema-flow.tsx's TODO.
   http.post("*/api/v1/onboarding/schema/test", () => {
     setCookie(ONBOARDING_SCHEMA_COOKIE, "1", 60 * 30);
     return new HttpResponse(null, { status: 200 });
