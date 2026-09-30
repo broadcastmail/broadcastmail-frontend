@@ -8,6 +8,7 @@ import {
 } from "@/lib/api/campaigns";
 import { getAccountEmailProvider } from "@/lib/api/email-provider";
 import type { Campaign } from "@/mocks/fixtures";
+import { useCampaignStatusStream } from "@/lib/campaigns/use-campaign-status-stream";
 import { Spinner } from "@/components/onboarding/spinner";
 import { jsonToHtml } from "@/lib/campaigns/editor-extensions";
 import { wrapEmailShell } from "@/lib/campaigns/email-html";
@@ -24,12 +25,13 @@ interface CampaignDetailProps {
 }
 
 export function CampaignDetail({ campaignId }: Readonly<CampaignDetailProps>) {
-  const [campaign, setCampaign] = useState<Campaign | null>(null);
+  const [baseCampaign, setBaseCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
   const [retryError, setRetryError] = useState(false);
   const [resendConfigured, setResendConfigured] = useState(false);
+  const [reconnectKey, setReconnectKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,7 +46,7 @@ export function CampaignDetail({ campaignId }: Readonly<CampaignDetailProps>) {
   const load = useCallback(async () => {
     try {
       const c = await getCampaign(campaignId);
-      setCampaign(c);
+      setBaseCampaign(c);
       return c;
     } finally {
       setLoading(false);
@@ -52,27 +54,26 @@ export function CampaignDetail({ campaignId }: Readonly<CampaignDetailProps>) {
   }, [campaignId]);
 
   useEffect(() => {
-    let cancelled = false;
-    let timeoutId: ReturnType<typeof setTimeout> | undefined;
-
-    async function tick() {
-      try {
-        const c = await load();
-        if (cancelled) return;
-        if (c.status === "RESOLVING" || c.status === "SENDING") {
-          timeoutId = setTimeout(tick, 1500);
-        }
-      } catch {
-        if (!cancelled) timeoutId = setTimeout(tick, 1500);
-      }
-    }
-    tick();
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timeoutId);
-    };
+    load();
   }, [load]);
+
+
+  const liveEvent = useCampaignStatusStream(campaignId, reconnectKey);
+
+  const campaign = useMemo(() => {
+    if (!baseCampaign) return null;
+    if (!liveEvent) return baseCampaign;
+    return {
+      ...baseCampaign,
+      status: liveEvent.status,
+      recipientCount: liveEvent.recipientsCount,
+      sentCount: liveEvent.sentCount,
+      openedCount: liveEvent.openedCount,
+      deliveredCount: liveEvent.deliveredCount,
+      bouncedCount: liveEvent.bouncedCount,
+      failedCount: liveEvent.failedCount,
+    };
+  }, [baseCampaign, liveEvent]);
 
   async function handleRetry() {
     if (retrying || !resendConfigured) return;
@@ -81,6 +82,7 @@ export function CampaignDetail({ campaignId }: Readonly<CampaignDetailProps>) {
     try {
       await retryCampaign(campaignId);
       await load();
+      setReconnectKey((k) => k + 1);
     } catch {
       setRetryError(true);
     } finally {
@@ -95,6 +97,7 @@ export function CampaignDetail({ campaignId }: Readonly<CampaignDetailProps>) {
     try {
       await retryFailedRecipients(campaignId);
       await load();
+      setReconnectKey((k) => k + 1);
     } catch {
       setRetryError(true);
     } finally {
