@@ -1,5 +1,6 @@
 import type { CampaignStatusEvent } from "@/lib/types/campaigns";
 
+let liveStatus = new Map<string, CampaignStatusEvent>();
 const listeners = new Set<() => void>();
 
 function notify() {
