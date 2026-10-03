@@ -1,4 +1,8 @@
+"use client";
+
 import { MetricCard } from "@/components/dashboard/metric-card";
+import { usePlan } from "@/lib/billing/plan-context";
+import { isProPlan } from "@/lib/billing/plans";
 
 interface DashboardHeroProps {
   audience: number;
@@ -17,9 +21,8 @@ export function DashboardHero({
   recipientsUsedThisPeriod,
   recipientsLimit,
 }: DashboardHeroProps) {
-  const progress = Math.round(
-    (recipientsUsedThisPeriod / recipientsLimit) * 100,
-  );
+  const isPro = isProPlan(usePlan());
+  const ratio = recipientsLimit > 0 ? recipientsUsedThisPeriod / recipientsLimit : 0;
 
   return (
     <div className="grid grid-cols-3 gap-[14px]">
@@ -36,8 +39,9 @@ export function DashboardHero({
       <MetricCard
         label="Recipients · This period"
         value={recipientsUsedThisPeriod}
-        limit={recipientsLimit}
-        progress={progress}
+        limit={isPro ? undefined : recipientsLimit}
+        progress={isPro ? undefined : Math.min(100, Math.round(ratio * 100))}
+        supporting={isPro ? "Unlimited" : undefined}
       />
     </div>
   );

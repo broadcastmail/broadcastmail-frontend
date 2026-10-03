@@ -1,5 +1,6 @@
 import { faker } from "@faker-js/faker";
 import type { JSONContent } from "@tiptap/core";
+import type { CampaignFilterResponse } from "@/lib/campaigns/audience";
 
 export type CampaignStatus =
   | "DRAFT"
@@ -34,6 +35,10 @@ export interface Campaign {
   failedCount: number;
   sentAt: string | null;
   createdAt: string;
+  // Mirrors CampaignResponse.filters — saved order, empty for a campaign
+  // with none (see CampaignResponse.from(campaign) overload with no filters
+  // arg, used for campaigns where they're not relevant, e.g. retries).
+  filters: CampaignFilterResponse[];
 }
 
 // Mirrors the real backend's RecipientStatus enum
@@ -102,6 +107,7 @@ export const fakeCampaign = (overrides?: Partial<Campaign>): Campaign => {
       ? faker.date.recent({ days: 30 }).toISOString()
       : null,
     createdAt: faker.date.recent({ days: 60 }).toISOString(),
+    filters: [],
     ...overrides,
   };
 };

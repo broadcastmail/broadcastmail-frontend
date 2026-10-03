@@ -1,16 +1,18 @@
+"use client";
+
 import Link from "next/link";
 import { SectionCard } from "@/components/layout/section-card";
 import { FieldRow } from "@/components/layout/field-row";
-import { PLAN_LABEL } from "@/lib/billing/plans";
-import type { PlanId } from "@/lib/types/me";
+import { PLAN_LABEL, isFreePlan } from "@/lib/billing/plans";
+import { usePlan } from "@/lib/billing/plan-context";
 
 interface AccountSectionProps {
   email: string;
-  plan: PlanId;
 }
 
-export function AccountSection({ email, plan }: Readonly<AccountSectionProps>) {
-  const isFree = plan === "free";
+export function AccountSection({ email }: Readonly<AccountSectionProps>) {
+  const plan = usePlan();
+  const isFree = isFreePlan(plan);
 
   return (
     <SectionCard title="Account">
