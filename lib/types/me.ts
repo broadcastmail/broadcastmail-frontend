@@ -1,4 +1,4 @@
-export type PlanId = "FREE" | "PRO";
+export type PlanId = "free" | "pro";
 
 export interface MeResponse {
   email: string;

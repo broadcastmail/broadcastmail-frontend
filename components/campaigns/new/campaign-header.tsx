@@ -22,9 +22,6 @@ interface CampaignHeaderProps {
    *  empty field. */
   resendConfigured: boolean;
   onSend: () => void;
-  upgradeRequired: boolean;
-  upgrading: boolean;
-  onUpgrade: () => void;
   saving: boolean;
   saveError: boolean;
   onSave: () => void;
@@ -40,9 +37,6 @@ export function CampaignHeader({
   canSend,
   resendConfigured,
   onSend,
-  upgradeRequired,
-  upgrading,
-  onUpgrade,
   saving,
   saveError,
   onSave,
@@ -121,16 +115,12 @@ export function CampaignHeader({
             )}
             {saving ? "Saving…" : "Save"}
           </button>
-          {upgradeRequired ? (
-            <UpgradeButton upgrading={upgrading} onUpgrade={onUpgrade} />
-          ) : (
-            <SendCampaignButton
-              active={active}
-              sending={sending}
-              resendConfigured={resendConfigured}
-              onSend={onSend}
-            />
-          )}
+          <SendCampaignButton
+            active={active}
+            sending={sending}
+            resendConfigured={resendConfigured}
+            onSend={onSend}
+          />
         </div>
         {sendError && (
           <div className="text-[12.5px] text-[#E5726A] text-right">
@@ -183,34 +173,6 @@ function SendCampaignButton({ active, sending, resendConfigured, onSend }: Reado
     <Tooltip>
       <TooltipTrigger asChild>{button}</TooltipTrigger>
       <TooltipContent>Connect Resend in Settings before sending</TooltipContent>
-    </Tooltip>
-  );
-}
-
-interface UpgradeButtonProps {
-  upgrading: boolean;
-  onUpgrade: () => void;
-}
-
-function UpgradeButton({ upgrading, onUpgrade }: Readonly<UpgradeButtonProps>) {
-  const button = (
-    <button
-      type="button"
-      onClick={onUpgrade}
-      disabled={upgrading}
-      className="flex items-center justify-center gap-1.75 box-border bg-orange hover:not-disabled:bg-orange-hover text-[#120C06] text-[13.5px] font-semibold rounded-lg px-4 py-2.5 whitespace-nowrap transition-colors disabled:opacity-60 disabled:cursor-wait cursor-pointer"
-    >
-      {upgrading && (
-        <Spinner size={12} className="border-[#120C06]/30 border-t-[#120C06]" />
-      )}
-      {upgrading ? "Redirecting…" : "Upgrade to Pro →"}
-    </button>
-  );
-
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{button}</TooltipTrigger>
-      <TooltipContent>Audience filters require Pro</TooltipContent>
     </Tooltip>
   );
 }

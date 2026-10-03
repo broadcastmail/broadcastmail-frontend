@@ -1,95 +1,50 @@
 export type ColumnType = "text" | "boolean" | "timestamptz";
 
-export type FilterSource = "PROFILE_TABLE" | "AUTH_METADATA" | "AUTH_METADATA_JSON";
-
-
-export type AudienceColumnSource = Exclude<FilterSource, "AUTH_METADATA_JSON">;
-
 export interface AudienceColumn {
   name: string;
   type: ColumnType;
-  source: AudienceColumnSource;
 }
 
-export type FilterOperator = "EQ" | "NEQ" | "GT" | "LT" | "CONTAINS";
-
-export const AUDIENCE_OPS: Record<ColumnType, [FilterOperator, string][]> = {
+export const AUDIENCE_OPS: Record<ColumnType, [string, string][]> = {
   text: [
-    ["EQ", "="],
-    ["NEQ", "≠"],
-    ["CONTAINS", "contains"],
+    ["eq", "="],
+    ["neq", "≠"],
+    ["contains", "contains"],
   ],
   boolean: [
-    ["EQ", "="],
-    ["NEQ", "≠"],
+    ["eq", "="],
+    ["neq", "≠"],
   ],
   timestamptz: [
-    ["GT", ">"],
-    ["LT", "<"],
-    ["EQ", "="],
+    ["gt", ">"],
+    ["lt", "<"],
+    ["eq", "="],
   ],
 };
+
+export const TOTAL_AUDIENCE = 4960;
 
 export interface AudienceFilter {
   id: string;
   column: string;
-  op: FilterOperator;
+  op: string;
   value: string;
-}
-
-export function columnKey(source: FilterSource, name: string): string {
-  return `${source}:${name}`;
 }
 
 export function columnFor(
   columns: AudienceColumn[],
-  key: string,
+  name: string,
 ): AudienceColumn {
   return (
-    columns.find((c) => columnKey(c.source, c.name) === key) ??
-    columns[0] ?? { name: key, type: "text", source: "PROFILE_TABLE" }
+    columns.find((c) => c.name === name) ?? columns[0] ?? { name, type: "text" }
   );
 }
 
-
-export interface AudienceFilterPayload {
-  columnName: string;
-  operator: FilterOperator;
-  filterValue: string;
-  source: AudienceColumnSource;
-}
-
-export interface CampaignFilterResponse {
-  columnName: string;
-  operator: FilterOperator;
-  filterValue: string;
-  source: FilterSource;
-  jsonKey: string | null;
-}
-
-export function fromFilterResponses(
-  responses: CampaignFilterResponse[],
-  nextId: () => string,
-): AudienceFilter[] {
-  return responses.map((r) => ({
-    id: nextId(),
-    column: columnKey(r.source, r.columnName),
-    op: r.operator,
-    value: r.filterValue,
-  }));
-}
-
-export function toFilterPayloads(
-  filters: AudienceFilter[],
-  columns: AudienceColumn[],
-): AudienceFilterPayload[] {
-  return filters.map((f) => {
-    const col = columnFor(columns, f.column);
-    return {
-      columnName: col.name,
-      operator: f.op,
-      filterValue: f.value,
-      source: col.source,
-    };
-  });
+export function estimateRecipientCount(filters: AudienceFilter[]): number {
+  if (!filters.length) return TOTAL_AUDIENCE;
+  const n = filters.reduce(
+    (acc, f) => Math.round(acc * (f.value ? 0.42 : 0.71)),
+    TOTAL_AUDIENCE,
+  );
+  return Math.max(n, 3);
 }

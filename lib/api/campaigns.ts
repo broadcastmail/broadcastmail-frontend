@@ -1,7 +1,6 @@
 import { apiClient } from "@/lib/api/client";
 import type { Campaign, CampaignRecipient, RecipientStatus } from "@/mocks/fixtures";
 import type { JSONContent } from "@tiptap/core";
-import type { AudienceFilterPayload } from "@/lib/campaigns/audience";
 
 // Spring's standard Page<T> envelope — matches what GET /campaigns already
 // returns (see mocks/handlers/campaigns.ts), reused here for consistency
@@ -28,20 +27,8 @@ export interface PageResponse<T> {
 // them as separate fields means the API can apply the right validation to
 // each rather than guessing which kind of string it received.
 export type CreateCampaignPayload =
-  | {
-      name: string;
-      subject: string;
-      source: "visual";
-      bodyJson: JSONContent;
-      filters?: AudienceFilterPayload[];
-    }
-  | {
-      name: string;
-      subject: string;
-      source: "import";
-      bodyHtmlImported: string;
-      filters?: AudienceFilterPayload[];
-    };
+  | { name: string; subject: string; source: "visual"; bodyJson: JSONContent }
+  | { name: string; subject: string; source: "import"; bodyHtmlImported: string };
 
 export async function createCampaign(
   payload: CreateCampaignPayload,
@@ -61,13 +48,6 @@ export async function updateCampaign(
 ): Promise<Campaign> {
   const res = await apiClient.patch<Campaign>(`/api/v1/campaigns/${id}`, payload);
   return res.data;
-}
-
-export async function previewRecipients(id: string): Promise<number> {
-  const res = await apiClient.get<{ recipientCount: number }>(
-    `/api/v1/campaigns/${id}/preview`,
-  );
-  return res.data.recipientCount;
 }
 
 export async function confirmCampaign(

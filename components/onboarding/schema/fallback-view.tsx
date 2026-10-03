@@ -1,7 +1,6 @@
 import { Spinner } from "@/components/onboarding/spinner";
 import type { ResolvedSchema } from "@/lib/types/onboarding";
 import { SchemaSqlPreview } from "./schema-sql-preview";
-import { columnKey } from "./column-key";
 
 interface FallbackViewProps {
   resolved: ResolvedSchema;
@@ -38,7 +37,7 @@ export function FallbackView({
         password="[password set by BroadcastMail]"
         userIdColumn={resolved.userIdColumn}
         authColumns={resolved.authColumns
-          .filter((c) => enabled.has(columnKey("auth", c.columnName)))
+          .filter((c) => enabled.has(c.columnName))
           .map((c) => c.columnName)}
         grantsTable={hasTable}
         tableSchema={resolved.userTableSchema}

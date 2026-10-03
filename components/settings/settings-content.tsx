@@ -15,7 +15,7 @@ export async function SettingsContent() {
   return (
     <div className="flex-1 overflow-y-auto px-8 py-9 flex justify-center">
       <div className="w-full max-w-280 flex flex-col gap-4">
-        {me && <AccountSection email={me.email} />}
+        {me && <AccountSection email={me.email} plan={me.plan} />}
         <SupabaseSection
           connectionName={me?.connectionName ?? null}
           schema={schema}

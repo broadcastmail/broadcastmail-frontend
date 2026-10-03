@@ -5,7 +5,6 @@ import { authHandlers } from "./handlers/auth";
 import { onboardingHandlers } from "./handlers/onboarding";
 import { oauthHandlers } from "./handlers/oauth";
 import { connectionHandlers } from "./handlers/connections";
-import { billingHandlers } from "./handlers/billing";
 
 export const server = setupServer(
   ...authHandlers,
@@ -14,5 +13,4 @@ export const server = setupServer(
   ...onboardingHandlers,
   ...oauthHandlers,
   ...connectionHandlers,
-  ...billingHandlers,
 );

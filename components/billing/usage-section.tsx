@@ -1,30 +1,22 @@
-"use client";
-
 import { SectionCard } from "@/components/layout/section-card";
 import { MetricCard } from "@/components/dashboard/metric-card";
-import { startCheckout } from "@/lib/api/billing";
-import { isProPlan } from "@/lib/billing/plans";
-import { usePlan } from "@/lib/billing/plan-context";
-import { useCheckoutRedirect } from "@/lib/billing/use-checkout-redirect";
+import type { PlanId } from "@/lib/types/me";
 
 interface UsageSectionProps {
+  plan: PlanId;
   recipientsUsed: number;
   recipientsLimit: number;
   campaignCount: number;
 }
 export function UsageSection({
+  plan,
   recipientsUsed,
   recipientsLimit,
   campaignCount,
 }: UsageSectionProps) {
-  const isPro = isProPlan(usePlan());
+  const isPro = plan === "pro";
   const ratio = recipientsLimit > 0 ? recipientsUsed / recipientsLimit : 0;
   const atLimit = !isPro && recipientsUsed >= recipientsLimit;
-  const { redirecting, redirect } = useCheckoutRedirect();
-
-  function handleUpgradeClick() {
-    redirect(startCheckout, "Couldn't start checkout — try again.");
-  }
 
   return (
     <SectionCard title="Usage">
@@ -56,11 +48,9 @@ export function UsageSection({
           </p>
           <button
             type="button"
-            onClick={handleUpgradeClick}
-            disabled={redirecting}
-            className="text-[12.5px] text-orange hover:text-orange-hover whitespace-nowrap disabled:opacity-60 disabled:cursor-wait cursor-pointer"
+            className="text-[12.5px] text-orange hover:text-orange-hover whitespace-nowrap cursor-pointer"
           >
-            {redirecting ? "Redirecting…" : "Upgrade to Pro →"}
+            Upgrade to Pro →
           </button>
         </div>
       )}

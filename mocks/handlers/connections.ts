@@ -6,10 +6,22 @@ import {
   ONBOARDING_SCHEMA_COOKIE,
   ONBOARDING_COLUMNS_COOKIE,
   ONBOARDING_TABLE_COOKIE,
+  hasCookie,
   setCookie,
   clearCookie,
 } from "../session";
 import { currentSchema } from "./onboarding";
+
+
+function confirmedSchema(request: Request) {
+  const schema = currentSchema(request);
+  if (schema?.status === "DETECTED" && !hasCookie(request, ONBOARDING_SCHEMA_COOKIE)) {
+    return { status: "NOT_DETECTED" as const };
+  }
+  return schema;
+}
+
+
 
 export const CONNECTABLE_PROJECTS = [
   { ref: "my-saas-app", name: "my-saas-app", status: "ACTIVE_HEALTHY", userCount: 1204 },
@@ -46,7 +58,7 @@ export const connectionHandlers = [
   }),
 
   http.get("*/api/v1/connections/schema/reconnect", ({ request }) => {
-    return HttpResponse.json(currentSchema(request));
+    return HttpResponse.json(confirmedSchema(request));
   }),
 
   http.patch("*/api/v1/connections/project", async ({ request }) => {

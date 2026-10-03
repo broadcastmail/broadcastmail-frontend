@@ -87,7 +87,6 @@ export function ChangeProjectDialog({
               onComplete={handleSchemaComplete}
               onConfirm={updateReconnectColumns}
               onSelectTable={handleSelectTable}
-              skipReview
             />
           </>
         )}

@@ -28,8 +28,8 @@ export const authHandlers = [
     const plan =
       url.searchParams.get("plan") === "pro" ||
       (!url.searchParams.has("plan") && getCookie(request, PLAN_COOKIE) === "pro")
-        ? "PRO"
-        : "FREE";
+        ? "pro"
+        : "free";
     // The real project connection, not a hardcoded stand-in — reflects
     // whatever Settings' "Reconfigure connection" flow (or onboarding
     // itself) last set, so a genuinely disconnected account shows that

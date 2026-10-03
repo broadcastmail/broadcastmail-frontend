@@ -1,7 +1,6 @@
 import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import type { DetectedColumn } from "@/lib/types/onboarding";
-import { columnKey } from "./column-key";
 
 interface SchemaColumnsProps {
   schema: string;
@@ -59,16 +58,15 @@ export function SchemaColumns({
         </div>
         <div className="flex flex-col gap-[7px] pl-[22px]">
           {authColumns.map((col) => {
-            const key = columnKey("auth", col.columnName);
-            const on = enabled.has(key);
+            const on = enabled.has(col.columnName);
             return (
               <label
-                key={key}
+                key={col.columnName}
                 className="flex items-center gap-2 cursor-pointer"
               >
                 <Checkbox
                   checked={on}
-                  onCheckedChange={() => onToggle(key)}
+                  onCheckedChange={() => onToggle(col.columnName)}
                   className={cn(
                     "w-[13px] h-[13px] box-border rounded-[3.5px] border-[1.5px]",
                     on
@@ -127,16 +125,15 @@ export function SchemaColumns({
 
         <div className="flex flex-col gap-[7px] pl-[22px]">
           {columns.map((col) => {
-            const key = columnKey("profile", col.columnName);
-            const on = enabled.has(key);
+            const on = enabled.has(col.columnName);
             return (
               <label
-                key={key}
+                key={col.columnName}
                 className="flex items-center gap-2 cursor-pointer"
               >
                 <Checkbox
                   checked={on}
-                  onCheckedChange={() => onToggle(key)}
+                  onCheckedChange={() => onToggle(col.columnName)}
                   className={cn(
                     "w-[13px] h-[13px] box-border rounded-[3.5px] border-[1.5px]",
                     on

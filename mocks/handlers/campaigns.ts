@@ -7,8 +7,6 @@ import {
   type RecipientStatus,
 } from "../fixtures";
 import type { CampaignStatusEvent } from "@/lib/types/campaigns";
-import type { AudienceFilterPayload } from "@/lib/campaigns/audience";
-import { store, filtersStore } from "@/mocks/campaign-store";
 
 function isTerminalStatus(status: Campaign["status"]): boolean {
   return status === "SENT" || status === "FAILED" || status === "PARTIALLY_FAILED";
@@ -42,43 +40,7 @@ function sleep(ms: number): Promise<void> {
 }
 
 
-const TOTAL_RECIPIENTS = 4960;
-
-function estimatePreviewCount(filters: AudienceFilterPayload[]): number {
-  if (!filters.length) return TOTAL_RECIPIENTS;
-  const n = filters.reduce(
-    (acc, f) => Math.round(acc * (f.filterValue ? 0.42 : 0.71)),
-    TOTAL_RECIPIENTS,
-  );
-  return Math.max(n, 3);
-}
-
-// The browser's store/filtersStore are a separate instance from the Node
-// server's (see mocks/campaign-store.ts) — mirror a write to the real
-// bridge route so server-side reads (e.g. the campaign composer's
-// server-fetched load) see it too. No-ops on the Node side, which already
-// shares the same module instance with that route directly.
-async function syncToServer(campaign: Campaign, filters?: AudienceFilterPayload[]) {
-  if (typeof window === "undefined") return;
-  try {
-    await fetch("/api/mock-store/campaigns/sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ campaign, filters }),
-    });
-  } catch (err) {
-    console.error("Failed to sync mock campaign to the server store", err);
-  }
-}
-
-// Merges this campaign's persisted filters in, same as the real backend's
-// CampaignController.withFilters — used for every single-campaign response
-// (not the list endpoint, which doesn't bother either).
-function withFilters(campaign: Campaign): Campaign {
-  const filters = filtersStore.get(campaign.id);
-  if (filters === undefined) return campaign;
-  return { ...campaign, filters: filters.map((f) => ({ ...f, jsonKey: null })) };
-}
+const store = new Map<string, Campaign>();
 
 
 const RESOLVE_MS = 3000;
@@ -394,7 +356,7 @@ export const campaignHandlers = [
     await delay(400);
     const id = params.id as string;
     if (!store.has(id)) return HttpResponse.json(fakeCampaign({ id }));
-    return HttpResponse.json(withFilters(resolveCampaign(id)));
+    return HttpResponse.json(resolveCampaign(id));
   }),
 
   http.get("*/api/v1/campaigns/:id/status/stream", ({ params }) => {
@@ -447,12 +409,9 @@ export const campaignHandlers = [
 
   http.post("*/api/v1/campaigns", async ({ request }) => {
     await delay(500);
-    const body = (await request.json()) as Partial<Campaign> & {
-      filters?: AudienceFilterPayload[];
-    };
-    const { filters, ...campaignBody } = body;
+    const body = (await request.json()) as Partial<Campaign>;
     const campaign = fakeCampaign({
-      ...campaignBody,
+      ...body,
       status: "DRAFT",
       recipientCount: null,
       sentCount: 0,
@@ -464,9 +423,7 @@ export const campaignHandlers = [
       createdAt: new Date().toISOString(),
     });
     store.set(campaign.id, campaign);
-    if (filters !== undefined) filtersStore.set(campaign.id, filters);
-    await syncToServer(campaign, filters);
-    return HttpResponse.json(withFilters(campaign), { status: 201 });
+    return HttpResponse.json(campaign, { status: 201 });
   }),
 
   http.patch("*/api/v1/campaigns/:id", async ({ params, request }) => {
@@ -474,16 +431,11 @@ export const campaignHandlers = [
     // long enough to actually read, not just flicker past.
     await delay(1100);
     const id = params.id as string;
-    const body = (await request.json()) as Partial<Campaign> & {
-      filters?: AudienceFilterPayload[];
-    };
-    const { filters, ...patch } = body;
+    const patch = (await request.json()) as Partial<Campaign>;
     const existing = store.get(id) ?? fakeCampaign({ id, status: "DRAFT" });
     const updated = { ...existing, ...patch };
     store.set(id, updated);
-    if (filters !== undefined) filtersStore.set(id, filters);
-    await syncToServer(updated, filters);
-    return HttpResponse.json(withFilters(updated));
+    return HttpResponse.json(updated);
   }),
 
   http.delete("*/api/v1/campaigns/:id", ({ params }) => {
@@ -575,9 +527,7 @@ export const campaignHandlers = [
     });
   }),
 
-  http.get("*/api/v1/campaigns/:id/preview", ({ params }) => {
-    const id = params.id as string;
-    const count = estimatePreviewCount(filtersStore.get(id) ?? []);
-    return HttpResponse.json({ recipientCount: count });
+  http.get("*/api/v1/campaigns/:id/preview", () => {
+    return HttpResponse.json({ recipientCount: 42 });
   }),
 ];

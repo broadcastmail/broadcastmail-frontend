@@ -1,28 +1,19 @@
-"use client";
-
 import { Check } from "lucide-react";
 import { SectionCard } from "@/components/layout/section-card";
 import { FieldRow } from "@/components/layout/field-row";
-import { Spinner } from "@/components/onboarding/spinner";
-import { PLAN_LABEL, PLAN_PRICE, PLAN_FEATURES, isProPlan } from "@/lib/billing/plans";
-import { startCheckout, startBillingPortal } from "@/lib/api/billing";
-import { usePlan } from "@/lib/billing/plan-context";
-import { useCheckoutRedirect } from "@/lib/billing/use-checkout-redirect";
+import { PLAN_LABEL, PLAN_PRICE, PLAN_FEATURES } from "@/lib/billing/plans";
+import type { PlanId } from "@/lib/types/me";
 
-export function PlanSection() {
-  const plan = usePlan();
-  const isPro = isProPlan(plan);
+interface PlanSectionProps {
+  plan: PlanId;
+}
+
+// Real-backend TODO: neither button below goes anywhere yet — there's no
+// checkout/subscription-management flow to link to (see lib/api/campaigns.ts
+// for the same kind of "not on the API yet" note elsewhere in this app).
+export function PlanSection({ plan }: PlanSectionProps) {
+  const isPro = plan === "pro";
   const price = PLAN_PRICE[plan];
-  const { redirecting, redirect } = useCheckoutRedirect();
-
-  function handleClick() {
-    redirect(
-      isPro ? startBillingPortal : startCheckout,
-      isPro
-        ? "Couldn't open subscription management — try again."
-        : "Couldn't start checkout — try again.",
-    );
-  }
 
   return (
     <SectionCard title="Plan">
@@ -60,26 +51,16 @@ export function PlanSection() {
         {isPro ? (
           <button
             type="button"
-            onClick={handleClick}
-            disabled={redirecting}
-            className="flex items-center gap-1.75 bg-transparent border border-white/13 text-[#B9B9C2] text-[12.5px] font-medium rounded-lg px-3.25 py-2 whitespace-nowrap transition-colors hover:border-white/24 hover:text-text-primary disabled:opacity-60 disabled:cursor-wait cursor-pointer"
+            className="flex items-center bg-transparent border border-white/13 text-[#B9B9C2] text-[12.5px] font-medium rounded-lg px-3.25 py-2 whitespace-nowrap transition-colors hover:border-white/24 hover:text-text-primary cursor-pointer"
           >
-            {redirecting && (
-              <Spinner size={11} className="border-[#26262F] border-t-[#B9B9C2]" />
-            )}
-            {redirecting ? "Redirecting…" : "Manage subscription →"}
+            Manage subscription →
           </button>
         ) : (
           <button
             type="button"
-            onClick={handleClick}
-            disabled={redirecting}
-            className="flex items-center gap-1.75 bg-orange hover:not-disabled:bg-orange-hover text-[#120C06] text-[13.5px] font-semibold rounded-lg px-4 py-2.5 whitespace-nowrap transition-colors disabled:opacity-60 disabled:cursor-wait cursor-pointer"
+            className="flex items-center bg-orange hover:bg-orange-hover text-[#120C06] text-[13.5px] font-semibold rounded-lg px-4 py-2.5 whitespace-nowrap transition-colors cursor-pointer"
           >
-            {redirecting && (
-              <Spinner size={12} className="border-[rgba(18,12,6,0.3)] border-t-[#120C06]" />
-            )}
-            {redirecting ? "Redirecting…" : "Upgrade to Pro →"}
+            Upgrade to Pro →
           </button>
         )}
       </div>

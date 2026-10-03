@@ -36,7 +36,6 @@ export function EditColumnsDialog({
           schema={schema}
           onComplete={handleComplete}
           onConfirm={updateReconnectColumns}
-          skipReview
         />
       </DialogContent>
     </Dialog>

@@ -47,7 +47,6 @@ export function EditTableAccessDialog({
           onComplete={handleComplete}
           onConfirm={updateReconnectColumns}
           onSelectTable={handleSelectTable}
-          skipReview
         />
       </DialogContent>
     </Dialog>
