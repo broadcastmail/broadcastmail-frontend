@@ -15,6 +15,7 @@ import { TablePickerView } from "./table-picker-view";
 import { FallbackView } from "./fallback-view";
 import { ReviewView } from "./review-view";
 import { ColumnsView } from "./columns-view";
+import { columnKey, columnNameFromKey } from "./column-key";
 
 // table-picker -> columns -> review -> (fallback if confirm fails)
 type View = "table-picker" | "columns" | "review" | "fallback";
@@ -27,16 +28,32 @@ function defaultSelectTable(candidate: DetectedSchema) {
   return selectTable(candidate.userTableSchema, candidate.userTableName);
 }
 
+function enabledKeysFor(resolved: {
+  filterableColumns: DetectedSchema["filterableColumns"];
+  authColumns: DetectedSchema["authColumns"];
+}): Set<string> {
+  return new Set([
+    ...resolved.filterableColumns
+      .filter((c) => c.enabled)
+      .map((c) => columnKey("profile", c.columnName)),
+    ...resolved.authColumns
+      .filter((c) => c.enabled)
+      .map((c) => columnKey("auth", c.columnName)),
+  ]);
+}
+
+function toColumnNames(enabled: Set<string>): string[] {
+  return [...new Set(Array.from(enabled).map(columnNameFromKey))];
+}
+
 interface SchemaFlowProps {
   schema: SchemaIntrospectionResult | null;
-  /** Defaults to advancing the onboarding wizard; edit dialogs override it. */
   onComplete?: () => void;
-  /** Defaults to onboarding's own confirm endpoint; reconnect dialogs override it. */
   onConfirm?: (columnNames: string[]) => Promise<void>;
-  /** Defaults to onboarding's selectTable; reconnect dialogs PATCH the table directly. */
   onSelectTable?: (
     candidate: DetectedSchema,
   ) => Promise<{ status: "DETECTED" } & DetectedSchema>;
+  skipReview?: boolean;
 }
 
 // Owns the wizard's state and every handler; each step's markup lives in
@@ -47,6 +64,7 @@ export function SchemaFlow({
   onComplete,
   onConfirm = defaultConfirm,
   onSelectTable = defaultSelectTable,
+  skipReview = false,
 }: Readonly<SchemaFlowProps>) {
   const router = useRouter();
   // `resolved` is the DETECTED schema every other view reads from.
@@ -58,16 +76,8 @@ export function SchemaFlow({
   );
   const [pickingTable, setPickingTable] = useState(false);
   const [pickError, setPickError] = useState<string | null>(null);
-  const [enabled, setEnabled] = useState<Set<string>>(
-    () =>
-      new Set(
-        (schema?.status === "DETECTED"
-          ? [...schema.filterableColumns, ...schema.authColumns]
-          : []
-        )
-          .filter((c) => c.enabled)
-          .map((c) => c.columnName),
-      ),
+  const [enabled, setEnabled] = useState<Set<string>>(() =>
+    schema?.status === "DETECTED" ? enabledKeysFor(schema) : new Set(),
   );
   const [running, setRunning] = useState(false);
   const [testing, setTesting] = useState(false);
@@ -81,11 +91,11 @@ export function SchemaFlow({
     else router.push(ONBOARDING_STEP_PATH.CONNECT_RESEND);
   }
 
-  function toggle(name: string) {
+  function toggle(key: string) {
     setEnabled((prev) => {
       const next = new Set(prev);
-      if (next.has(name)) next.delete(name);
-      else next.add(name);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   }
@@ -96,13 +106,7 @@ export function SchemaFlow({
     try {
       const result = await onSelectTable(candidate);
       setResolved(result);
-      setEnabled(
-        new Set(
-          [...result.filterableColumns, ...result.authColumns]
-            .filter((c) => c.enabled)
-            .map((c) => c.columnName),
-        ),
-      );
+      setEnabled(enabledKeysFor(result));
       setView("columns");
     } catch {
       setPickError("Couldn't select that table — try again.");
@@ -111,23 +115,22 @@ export function SchemaFlow({
     }
   }
 
-  // Applies the moment this step is done, not deferred to the review screen.
   async function confirmColumns() {
     if (savingColumns) return;
     setSavingColumns(true);
     try {
-      await onConfirm(Array.from(enabled));
-      setView("review");
+      await onConfirm(toColumnNames(enabled));
+      if (skipReview) finish();
+      else setView("review");
     } finally {
       setSavingColumns(false);
     }
   }
 
-  // Re-sends the same values confirmColumns already saved; can still fail here.
   async function runSetup() {
     setRunning(true);
     try {
-      await onConfirm(Array.from(enabled));
+      await onConfirm(toColumnNames(enabled));
       finish();
     } catch {
       // Grant SQL failed to execute — drop to the manual fallback.

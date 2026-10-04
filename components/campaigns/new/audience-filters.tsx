@@ -11,8 +11,8 @@ import {
 } from "@/components/ui/select";
 import {
   AUDIENCE_OPS,
-  TOTAL_AUDIENCE,
   columnFor,
+  columnKey,
   type AudienceColumn,
   type AudienceFilter,
 } from "@/lib/campaigns/audience";
@@ -45,7 +45,7 @@ export function AudienceFilters({
 }: Readonly<AudienceFiltersProps>) {
   const matchSummary = counting
     ? "updating…"
-    : `${Math.round((recipientCount / TOTAL_AUDIENCE) * 100)}% of your audience`;
+    : `${recipientCount.toLocaleString()} match${recipientCount === 1 ? "" : "es"}`;
   const hasColumns = columns.length > 0;
 
   return (
@@ -55,7 +55,7 @@ export function AudienceFilters({
           <span>
             Sending to everyone ·{" "}
             <span className="font-mono text-[#8E8E9A] [font-variant-numeric:tabular-nums]">
-              {TOTAL_AUDIENCE.toLocaleString()}
+              {recipientCount.toLocaleString()}
             </span>{" "}
             users
           </span>
@@ -106,11 +106,12 @@ export function AudienceFilters({
                   <SelectContent className={selectContentClass}>
                     {columns.map((c) => (
                       <SelectItem
-                        key={c.name}
-                        value={c.name}
+                        key={columnKey(c.source, c.name)}
+                        value={columnKey(c.source, c.name)}
                         className={selectItemClass}
                       >
                         {c.name}
+                        {c.source === "AUTH_METADATA" && " (auth)"}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -118,7 +119,9 @@ export function AudienceFilters({
 
                 <Select
                   value={f.op}
-                  onValueChange={(op) => onPatch(f.id, { op })}
+                  onValueChange={(op) =>
+                    onPatch(f.id, { op: op as AudienceFilter["op"] })
+                  }
                 >
                   <SelectTrigger className={selectTriggerClass}>
                     <SelectValue />

@@ -1,21 +1,33 @@
 import type { PlanId } from "@/lib/types/me";
 
 export const PLAN_LABEL: Record<PlanId, string> = {
-  free: "Free",
-  pro: "Pro",
+  FREE: "Free",
+  PRO: "Pro",
 };
 
-// Only Pro carries a price line next to its name in plan-section.tsx —
-// Free has nothing to show there.
 export const PLAN_PRICE: Partial<Record<PlanId, string>> = {
-  pro: "$9 / month",
+  PRO: "$9 / month",
 };
 
 export const PLAN_FEATURES: Record<PlanId, string[]> = {
-  free: [
+  FREE: [
     "500 recipients per rolling 30-day period",
     "Unlimited campaigns",
+    "Audience filters require Pro",
     "Email support",
   ],
-  pro: ["Unlimited recipients", "Unlimited campaigns", "Priority support"],
+  PRO: [
+    "Unlimited recipients",
+    "Unlimited campaigns",
+    "Audience filters",
+    "Priority support",
+  ],
 };
+
+export function isProPlan(plan: PlanId): boolean {
+  return plan === "PRO";
+}
+
+export function isFreePlan(plan: PlanId): boolean {
+  return !isProPlan(plan);
+}

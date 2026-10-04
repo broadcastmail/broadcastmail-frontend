@@ -8,27 +8,29 @@ import {
 } from "@/lib/api/campaigns";
 import { updateSessionDraft } from "@/lib/campaigns/session-drafts";
 import { sanitizeHtmlSource } from "@/lib/campaigns/sanitize-html-source";
+import {
+  toFilterPayloads,
+  type AudienceColumn,
+  type AudienceFilter,
+} from "@/lib/campaigns/audience";
+import { useDebounceController } from "@/lib/campaigns/use-debounced-callback";
 
 interface UseCampaignAutosaveOptions {
   campaignId: string;
-  /** Pass false while the initial load hasn't resolved yet — nothing to
-   *  autosave before there's a loaded draft to autosave *from*. */
   enabled: boolean;
   name: string;
   subject: string;
   source: "visual" | "import";
   visualBodyJson: JSONContent;
   importedHtml: string;
+  filters: AudienceFilter[];
+  filtersTouched: boolean;
+  audienceColumns: AudienceColumn[];
   delayMs?: number;
 }
 
 interface UseCampaignAutosaveResult {
   saving: boolean;
-  /** True once any of the tracked fields has changed since the last
-   *  successful save (including one still pending in the debounce). Lets
-   *  the composer warn before the user navigates away with edits the
-   *  autosave hasn't caught up to yet — see navigation guarding in
-   *  new-campaign-composer.tsx. */
   dirty: boolean;
 
   saveNow: () => Promise<void>;
@@ -40,6 +42,7 @@ interface CampaignSnapshot {
   source: "visual" | "import";
   visualBodyJson: JSONContent;
   importedHtml: string;
+  filters: AudienceFilter[];
 }
 
 /** Debounced autosave for the campaign composer, plus an imperative escape
@@ -58,29 +61,38 @@ export function useCampaignAutosave({
   source,
   visualBodyJson,
   importedHtml,
+  filters,
+  filtersTouched,
+  audienceColumns,
   delayMs = 1000,
 }: UseCampaignAutosaveOptions): UseCampaignAutosaveResult {
   const [saving, setSaving] = useState(false);
 
-  // Kept fresh on every render (a plain assignment, not an effect) so
-  // saveNow() — called from a click, not from the debounce below — always
-  // sends what's on screen *right now*, not whatever it was when saveNow
-  // was created.
+  // Kept fresh every render so saveNow() always sends what's on screen
+  // right now, not whatever it was when saveNow was created.
   const latestRef = useRef({
     name,
     subject,
     source,
     visualBodyJson,
     importedHtml,
+    filters,
+    filtersTouched,
+    audienceColumns,
   });
-  latestRef.current = { name, subject, source, visualBodyJson, importedHtml };
+  latestRef.current = {
+    name,
+    subject,
+    source,
+    visualBodyJson,
+    importedHtml,
+    filters,
+    filtersTouched,
+    audienceColumns,
+  };
 
-  // The fields as of the last successful save — the baseline "dirty" below
-  // compares against. Set once, the first render `enabled` is true (the
-  // just-loaded draft counts as saved), then again after every successful
-  // save. A plain ref written during render, not an effect: it only ever
-  // needs to happen once per condition becoming true, which the `=== null`
-  // guard already makes idempotent.
+  // Baseline "dirty" compares against — the fields as of the last
+  // successful save.
   const committedRef = useRef<CampaignSnapshot | null>(null);
   if (enabled && committedRef.current === null) {
     committedRef.current = {
@@ -89,6 +101,7 @@ export function useCampaignAutosave({
       source,
       visualBodyJson,
       importedHtml,
+      filters,
     };
   }
   const committed = committedRef.current;
@@ -99,34 +112,36 @@ export function useCampaignAutosave({
       subject !== committed.subject ||
       source !== committed.source ||
       visualBodyJson !== committed.visualBodyJson ||
-      importedHtml !== committed.importedHtml);
+      importedHtml !== committed.importedHtml ||
+      filters !== committed.filters);
 
   const buildPayload = useCallback((): CreateCampaignPayload => {
     const l = latestRef.current;
+    const filters = l.filtersTouched
+      ? toFilterPayloads(l.filters, l.audienceColumns)
+      : undefined;
     return l.source === "visual"
       ? {
           name: l.name,
           subject: l.subject,
           source: "visual",
           bodyJson: l.visualBodyJson,
+          filters,
         }
       : {
           name: l.name,
           subject: l.subject,
           source: "import",
-          // Sanitized here, at the boundary right before it goes out — see
-          // sanitize-html-source.ts for why that's still not a substitute
-          // for the API sanitizing again on receipt.
           bodyHtmlImported: sanitizeHtmlSource(l.importedHtml),
+          filters,
         };
   }, []);
 
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
-  );
+  const { schedule: scheduleSave, cancel: cancelScheduledSave } =
+    useDebounceController();
 
   const saveNow = useCallback(async () => {
-    clearTimeout(timeoutRef.current);
+    cancelScheduledSave();
     setSaving(true);
     try {
       await updateCampaign(campaignId, buildPayload());
@@ -141,10 +156,8 @@ export function useCampaignAutosave({
     } finally {
       setSaving(false);
     }
-  }, [campaignId, buildPayload]);
+  }, [campaignId, buildPayload, cancelScheduledSave]);
 
-  // Skips the very first run — nothing has changed yet at that point, it's
-  // just the initial load's own values flowing through.
   const skipFirstRef = useRef(true);
 
   useEffect(() => {
@@ -153,23 +166,25 @@ export function useCampaignAutosave({
       skipFirstRef.current = false;
       return;
     }
-    timeoutRef.current = setTimeout(() => {
-      saveNow().catch(() => {
-        // Best-effort — there's no dedicated resume UI yet to surface a
-        // retry into, so this is a head start for when one exists, not
-        // something the user needs to babysit today. The manual Save
-        // button (which does surface its own error) is the fallback.
-      });
+    scheduleSave(() => {
+      // Best-effort: no retry UI for a background autosave failure yet —
+      // the manual Save button (which does surface its own error) is the
+      // fallback.
+      saveNow().catch((err) => console.error(`Autosave failed for campaign ${campaignId}`, err));
     }, delayMs);
-    return () => clearTimeout(timeoutRef.current);
+    return cancelScheduledSave;
   }, [
     enabled,
+    campaignId,
     delayMs,
     name,
     subject,
     source,
     visualBodyJson,
     importedHtml,
+    filters,
+    scheduleSave,
+    cancelScheduledSave,
     saveNow,
   ]);
 

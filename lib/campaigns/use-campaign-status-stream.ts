@@ -33,9 +33,11 @@ function createCampaignStatusStream(campaignId: string): CampaignStatusStream {
       }
     });
 
+    source.onerror = () => {
       source?.close();
       source = null;
     };
+  }
 
   return {
     subscribe(listener) {
@@ -64,7 +66,7 @@ export function useCampaignStatusStream(
 ): CampaignStatusEvent | null {
   const stream = useMemo(
     () => createCampaignStatusStream(campaignId),
-
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- generation is a deliberate extra dep to force a reconnect, not something createCampaignStatusStream reads
     [campaignId, generation],
   );
   return useSyncExternalStore(
