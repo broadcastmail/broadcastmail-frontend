@@ -1,17 +1,17 @@
 "use client";
 
-import { createContext, useContext, type ReactNode } from "react";
-import type { PlanId } from "@/lib/types/me";
+import {createContext, type ReactNode, useContext} from "react";
+import type {PlanId} from "@/lib/types/me";
 
 const PlanContext = createContext<PlanId | null>(null);
 
 export function PlanProvider({
   plan,
   children,
-}: {
-  plan: PlanId;
-  children: ReactNode;
-}) {
+}: Readonly<{
+    plan: PlanId;
+    children: ReactNode;
+}>) {
   return <PlanContext.Provider value={plan}>{children}</PlanContext.Provider>;
 }
 

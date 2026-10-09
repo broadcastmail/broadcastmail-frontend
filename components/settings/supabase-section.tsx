@@ -1,23 +1,19 @@
 "use client";
 
-import { useState } from "react";
-import { RefreshCw, Pencil } from "lucide-react";
-import { toast } from "sonner";
-import { SectionCard } from "@/components/layout/section-card";
-import { FieldRow } from "@/components/layout/field-row";
-import { Spinner } from "@/components/onboarding/spinner";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogFooter,
-} from "@/components/ui/alert-dialog";
-import { ChangeProjectDialog } from "./change-project-dialog";
-import { EditTableAccessDialog } from "./edit-table-access-dialog";
-import { EditColumnsDialog } from "./edit-columns-dialog";
-import { navigateToBackendRedirect } from "@/lib/api/oauth-redirect";
-import { listReconnectProjects, getReconnectSchema } from "@/lib/api/schema";
-import type { ConnectionProject } from "@/lib/types/connection";
-import type { SchemaIntrospectionResult } from "@/lib/types/onboarding";
+import {useState} from "react";
+import {Pencil, RefreshCw} from "lucide-react";
+import {toast} from "sonner";
+import {SectionCard} from "@/components/layout/section-card";
+import {FieldRow} from "@/components/layout/field-row";
+import {Spinner} from "@/components/onboarding/spinner";
+import {AlertDialog, AlertDialogContent, AlertDialogFooter,} from "@/components/ui/alert-dialog";
+import {ChangeProjectDialog} from "./change-project-dialog";
+import {EditTableAccessDialog} from "./edit-table-access-dialog";
+import {EditColumnsDialog} from "./edit-columns-dialog";
+import {navigateToBackendRedirect} from "@/lib/api/oauth-redirect";
+import {getReconnectSchema, listReconnectProjects} from "@/lib/api/schema";
+import type {ConnectionProject} from "@/lib/types/connection";
+import type {SchemaIntrospectionResult} from "@/lib/types/onboarding";
 
 interface SupabaseSectionProps {
   connectionName: string | null;
@@ -29,7 +25,7 @@ interface SupabaseSectionProps {
 export function SupabaseSection({
   connectionName,
   schema,
-}: SupabaseSectionProps) {
+}: Readonly<SupabaseSectionProps>) {
   const [confirmReconfigureOpen, setConfirmReconfigureOpen] = useState(false);
   const [reconfiguring, setReconfiguring] = useState(false);
 
@@ -87,6 +83,9 @@ export function SupabaseSection({
   const filterable = columnsConfigured
     ? enabledColumns.map((c) => c.columnName).join(" · ")
     : "Not configured";
+  let userTableLabel = "Not configured";
+  if (resolved) userTableLabel = `${resolved.userTableSchema}.${resolved.userTableName}`;
+  else if (schema?.status === "MULTIPLE_CANDIDATES") userTableLabel = "Multiple tables found";
 
   return (
     <SectionCard title="Supabase">
@@ -120,11 +119,7 @@ export function SupabaseSection({
                   : "font-mono text-[13px] text-orange"
               }
             >
-              {resolved
-                ? `${resolved.userTableSchema}.${resolved.userTableName}`
-                : schema?.status === "MULTIPLE_CANDIDATES"
-                  ? "Multiple tables found"
-                  : "Not configured"}
+              {userTableLabel}
             </span>
             <EditLink onClick={handleTableAccessClick} disabled={tableAccessLoading} />
           </div>
@@ -234,12 +229,12 @@ function EditLink({
   disabled,
   label = "Edit",
   icon: Icon = Pencil,
-}: {
-  onClick: () => void;
-  disabled?: boolean;
-  label?: string;
-  icon?: typeof Pencil;
-}) {
+}: Readonly<{
+    onClick: () => void;
+    disabled?: boolean;
+    label?: string;
+    icon?: typeof Pencil;
+}>) {
   return (
     <button
       type="button"
