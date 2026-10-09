@@ -1,6 +1,6 @@
-import type { OnboardingStep } from "@/lib/types/onboarding";
+import type {OnboardingStep} from "@/lib/types/onboarding";
 
-// Pure client-safe constant — deliberately kept out of lib/api/onboarding.ts,
+// Pure client-safe constant — deliberately kept out of features/onboarding/api/onboarding.ts,
 // which pulls in next/headers via forwardedCookieHeader and can't be
 // imported from "use client" components (Turbopack errors: "next/headers"
 // is Server Components only). Server pages and client components both

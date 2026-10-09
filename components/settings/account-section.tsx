@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { SectionCard } from "@/components/layout/section-card";
-import { FieldRow } from "@/components/layout/field-row";
-import { PLAN_LABEL, isFreePlan } from "@/lib/billing/plans";
-import { usePlan } from "@/lib/billing/plan-context";
+import {SectionCard} from "@/components/layout/section-card";
+import {FieldRow} from "@/components/layout/field-row";
+import {isFreePlan, PLAN_LABEL} from "@/lib/subscription/plans";
+import {usePlan} from "@/lib/subscription/plan-context";
 
 interface AccountSectionProps {
   email: string;

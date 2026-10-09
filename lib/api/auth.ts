@@ -1,5 +1,5 @@
-import { apiClient } from "@/lib/api/client";
-import type { MeResponse } from "@/lib/types/me";
+import {apiClient} from "@/lib/api/client/client";
+import type {MeResponse} from "@/lib/types/me";
 
 export async function logout(): Promise<void> {
   await apiClient.post("/api/v1/auth/logout");

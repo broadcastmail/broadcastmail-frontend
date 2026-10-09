@@ -1,4 +1,4 @@
-// Dev-only. This is the "centralized config" for exercising different
+// Dev-only. This is the "centralized client" for exercising different
 // account states without hand-editing cookies — see app/dev/scenarios for
 // where these actually get applied.
 //
@@ -23,13 +23,13 @@
 // worth having today, for manual exploration in a real browser tab.
 
 import {
-  SESSION_COOKIE,
-  HAS_ACCOUNT_COOKIE,
-  ONBOARDING_PROJECT_COOKIE,
-  ONBOARDING_SCHEMA_COOKIE,
-  ONBOARDING_COLUMNS_COOKIE,
-  ONBOARDING_RESEND_COOKIE,
-  PLAN_COOKIE,
+    HAS_ACCOUNT_COOKIE,
+    ONBOARDING_COLUMNS_COOKIE,
+    ONBOARDING_PROJECT_COOKIE,
+    ONBOARDING_RESEND_COOKIE,
+    ONBOARDING_SCHEMA_COOKIE,
+    PLAN_COOKIE,
+    SESSION_COOKIE,
 } from "./session";
 
 export const SCENARIO_COOKIES = [

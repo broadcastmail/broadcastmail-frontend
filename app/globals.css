@@ -73,3 +73,29 @@ body {
   color: var(--color-text-primary);
   font-family: var(--font-sans);
 }
+
+
+.bm-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #8e8e9a transparent;
+}
+
+.bm-scrollbar::-webkit-scrollbar {
+  width: 9px;
+  height: 9px;
+}
+
+.bm-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.bm-scrollbar::-webkit-scrollbar-thumb {
+  background: #8e8e9a;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+}
+
+.bm-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #b9b9c2;
+}

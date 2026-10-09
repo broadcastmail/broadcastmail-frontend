@@ -1,8 +1,8 @@
-import { redirect } from "next/navigation";
-import { getOnboardingStatus } from "@/lib/api/onboarding";
-import { ONBOARDING_STEP_PATH } from "@/lib/onboarding-steps";
-import { OnboardingShell } from "@/components/onboarding/onboarding-shell";
-import { ConfirmStep } from "@/components/onboarding/confirm/confirm-step";
+import {redirect} from "next/navigation";
+import {getOnboardingStatus} from "@/features/onboarding/api/onboarding";
+import {ONBOARDING_STEP_PATH} from "@/lib/onboarding-steps";
+import {OnboardingShell} from "@/components/onboarding/onboarding-shell";
+import {ConfirmStep} from "@/components/onboarding/confirm/confirm-step";
 
 export default async function ConfirmPage() {
   const status = await getOnboardingStatus();

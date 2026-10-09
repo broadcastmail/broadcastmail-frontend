@@ -1,18 +1,18 @@
 // mocks/handlers/onboarding.ts
-import { http, HttpResponse } from "msw";
+import {http, HttpResponse} from "msw";
 import {
-  SESSION_COOKIE,
-  ONBOARDING_COOKIE,
-  HAS_ACCOUNT_COOKIE,
-  ONBOARDING_PROJECT_COOKIE,
-  ONBOARDING_SCHEMA_COOKIE,
-  ONBOARDING_RESEND_COOKIE,
-  ONBOARDING_COLUMNS_COOKIE,
-  ONBOARDING_TABLE_COOKIE,
-  hasCookie,
-  getCookie,
-  setCookie,
-  clearCookie,
+    clearCookie,
+    getCookie,
+    HAS_ACCOUNT_COOKIE,
+    hasCookie,
+    ONBOARDING_COLUMNS_COOKIE,
+    ONBOARDING_COOKIE,
+    ONBOARDING_PROJECT_COOKIE,
+    ONBOARDING_RESEND_COOKIE,
+    ONBOARDING_SCHEMA_COOKIE,
+    ONBOARDING_TABLE_COOKIE,
+    SESSION_COOKIE,
+    setCookie,
 } from "../session";
 
 // Wizard steps once ONBOARDING_COOKIE is set; OAuth entry lives in oauth.ts.
@@ -192,7 +192,7 @@ export const onboardingHandlers = [
   }),
 
   // Step — complete: promote session to real, mark account as existing.
-  // Only the wizard token is cleared — project/schema/Resend cookies persist as account config.
+  // Only the wizard token is cleared — project/schema/Resend cookies persist as account client.
   http.post("*/api/v1/onboarding/complete", () => {
     setCookie(SESSION_COOKIE, "mock_api_key_for_dev", 60 * 60 * 24 * 30);
     setCookie(HAS_ACCOUNT_COOKIE, "1", 60 * 60 * 24 * 365);

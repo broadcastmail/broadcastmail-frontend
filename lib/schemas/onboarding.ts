@@ -1,4 +1,4 @@
-import { z } from "zod";
+import {z} from "zod";
 
 // Shared between the email-provider form (react-hook-form's zodResolver)
 // and the API call it submits to — one schema validates both the fields

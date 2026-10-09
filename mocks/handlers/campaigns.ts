@@ -1,14 +1,9 @@
-import { http, HttpResponse, delay } from "msw";
-import { faker } from "@faker-js/faker";
-import {
-  fakeCampaign,
-  type Campaign,
-  type CampaignRecipient,
-  type RecipientStatus,
-} from "../fixtures";
-import type { CampaignStatusEvent } from "@/lib/types/campaigns";
-import type { AudienceFilterPayload } from "@/lib/campaigns/audience";
-import { store, filtersStore } from "@/mocks/campaign-store";
+import {delay, http, HttpResponse} from "msw";
+import {faker} from "@faker-js/faker";
+import {fakeCampaign,} from "../fixtures";
+import type {AudienceMode, Campaign, CampaignRecipient, CampaignStatusEvent, RecipientStatus} from "@/lib/types/campaigns";
+import type {AudienceFilterPayload} from "@/features/campaigns/new/audience/audience";
+import {type AudienceDefinition, audienceStore, filtersStore, store} from "@/mocks/campaign-store";
 
 function isTerminalStatus(status: Campaign["status"]): boolean {
   return status === "SENT" || status === "FAILED" || status === "PARTIALLY_FAILED";
@@ -58,26 +53,28 @@ function estimatePreviewCount(filters: AudienceFilterPayload[]): number {
 // bridge route so server-side reads (e.g. the campaign composer's
 // server-fetched load) see it too. No-ops on the Node side, which already
 // shares the same module instance with that route directly.
-async function syncToServer(campaign: Campaign, filters?: AudienceFilterPayload[]) {
+async function syncToServer(campaign: Campaign, filters?: AudienceFilterPayload[], audience?: AudienceDefinition) {
   if (typeof window === "undefined") return;
   try {
     await fetch("/api/mock-store/campaigns/sync", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ campaign, filters }),
+      body: JSON.stringify({ campaign, filters, audience }),
     });
   } catch (err) {
     console.error("Failed to sync mock campaign to the server store", err);
   }
 }
 
-// Merges this campaign's persisted filters in, same as the real backend's
-// CampaignController.withFilters — used for every single-campaign response
-// (not the list endpoint, which doesn't bother either).
+// Merges this campaign's persisted filters and audience definition in, same
+// as the real backend's CampaignController.withFilters — used for every
+// single-campaign response (not the list endpoint, which doesn't bother either).
 function withFilters(campaign: Campaign): Campaign {
   const filters = filtersStore.get(campaign.id);
-  if (filters === undefined) return campaign;
-  return { ...campaign, filters: filters.map((f) => ({ ...f, jsonKey: null })) };
+  const audience = audienceStore.get(campaign.id);
+  const withAudience = audience ? { ...campaign, ...audience } : campaign;
+  if (filters === undefined) return withAudience;
+  return { ...withAudience, filters: filters.map((f) => ({ ...f, jsonKey: null })) };
 }
 
 
@@ -113,13 +110,9 @@ function generateRecipients(total: number, forceFailures?: boolean): SimState["r
 
   const list = Array.from({ length: total }, (_, i) => {
     const failed = failRate > 0 && chance(failRate);
-    const status: RecipientStatus = failed
-      ? chance(0.5)
-        ? "FAILED"
-        : "BOUNCED"
-      : chance(openRate)
-        ? "OPENED"
-        : "DELIVERED";
+    let status: RecipientStatus = "DELIVERED";
+    if (failed) status = chance(0.5) ? "FAILED" : "BOUNCED";
+    else if (chance(openRate)) status = "OPENED";
     return {
       id: faker.string.uuid(),
       email: faker.internet.email().toLowerCase(),
@@ -224,7 +217,7 @@ function seedTerminalSimulation(
   sentAt: Date,
   force?: "SENT" | "PARTIALLY_FAILED" | "FAILED",
 ): { status: Campaign["status"]; counts: ReturnType<typeof countByStatus> } {
-  const resolutionFailed = force === "FAILED" ? true : force ? false : chance(0.1);
+  const resolutionFailed = force ? force === "FAILED" : chance(0.1);
   const confirmedAt = sentAt.getTime() - RESOLVE_MS - SEND_MS;
 
   if (resolutionFailed) {
@@ -232,10 +225,8 @@ function seedTerminalSimulation(
     return { status: "FAILED", counts: { delivered: 0, opened: 0, failed: 0, bounced: 0 } };
   }
 
-  const recipients = generateRecipients(
-    recipientCount,
-    force === "PARTIALLY_FAILED" ? true : force === "SENT" ? false : undefined,
-  );
+  const forceFailures = force === undefined ? undefined : force === "PARTIALLY_FAILED";
+  const recipients = generateRecipients(recipientCount, forceFailures);
   sims.set(id, { confirmedAt, resolutionFailed: false, recipients, frozen: true });
   const counts = countByStatus(recipients);
   return { status: statusFromCounts(counts), counts };
@@ -324,7 +315,7 @@ function resolveRecipients(id: string): CampaignRecipient[] {
 type SeedStatus = "DRAFT" | "SENT" | "PARTIALLY_FAILED" | "FAILED";
 
 function seedDemoCampaign(force?: SeedStatus) {
-  const isDraft = force === "DRAFT" ? true : force ? false : chance(0.15);
+  const isDraft = force ? force === "DRAFT" : chance(0.15);
   if (isDraft) {
     const campaign = fakeCampaign({
       status: "DRAFT",
@@ -476,13 +467,25 @@ export const campaignHandlers = [
     const id = params.id as string;
     const body = (await request.json()) as Partial<Campaign> & {
       filters?: AudienceFilterPayload[];
+      audienceMode?: AudienceMode;
+      includedIds?: string[];
+      excludedIds?: string[];
     };
-    const { filters, ...patch } = body;
+    const { filters, audienceMode, includedIds, excludedIds, ...patch } = body;
     const existing = store.get(id) ?? fakeCampaign({ id, status: "DRAFT" });
     const updated = { ...existing, ...patch };
     store.set(id, updated);
     if (filters !== undefined) filtersStore.set(id, filters);
-    await syncToServer(updated, filters);
+    if (audienceMode !== undefined || includedIds !== undefined || excludedIds !== undefined) {
+      const prev = audienceStore.get(id) ?? { audienceMode: null, includedIds: null, excludedIds: null };
+      audienceStore.set(id, {
+        audienceMode: audienceMode ?? prev.audienceMode,
+        includedIds: includedIds ?? prev.includedIds,
+        excludedIds: excludedIds ?? prev.excludedIds,
+      });
+    }
+    const audienceData = audienceMode !== undefined || includedIds !== undefined || excludedIds !== undefined ? audienceStore.get(id) : undefined;
+    await syncToServer(updated, filters, audienceData);
     return HttpResponse.json(withFilters(updated));
   }),
 
@@ -510,10 +513,23 @@ export const campaignHandlers = [
     await delay(2200);
     const id = params.id as string;
     if (!store.has(id)) return new HttpResponse(null, { status: 404 });
-    const body = (await request.json().catch(() => ({}))) as {
-      recipientCount?: number;
-    };
-    startSimulation(id, body.recipientCount ?? faker.number.int({ min: 40, max: 400 }));
+    await request.json().catch(() => ({}));
+    const audience = audienceStore.get(id);
+    const savedFilters = filtersStore.get(id) ?? [];
+    // Mirror CampaignConfirmService: reject if no audience mode and no filters.
+    if ((audience?.audienceMode == null) && savedFilters.length === 0) {
+      return HttpResponse.json({ error: "Audience not configured" }, { status: 422 });
+    }
+    let recipientCount: number;
+    if (audience?.audienceMode === "manual") {
+      recipientCount = (audience.includedIds ?? []).length;
+    } else if (audience?.audienceMode === "all") {
+      recipientCount = Math.max(0, TOTAL_RECIPIENTS - (audience.excludedIds ?? []).length);
+    } else {
+      // audienceMode = null + non-empty filters: backward-compat, treat as "filter"
+      recipientCount = estimatePreviewCount(savedFilters);
+    }
+    startSimulation(id, recipientCount);
     return new HttpResponse(null, { status: 202 });
   }),
 

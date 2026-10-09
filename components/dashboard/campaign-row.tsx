@@ -1,19 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { StatusBadge } from "@/components/dashboard/status-badge";
-import { Campaign } from "@/mocks/fixtures";
-import { TableRow, TableCell } from "@/components/ui/table";
-import { format, isToday, isYesterday } from "date-fns";
-import { Trash2 } from "lucide-react";
-import { DeleteCampaignDialog } from "./delete-campaign-dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import {useState} from "react";
+import {useRouter} from "next/navigation";
+import {StatusBadge} from "@/components/dashboard/status-badge";
+import {Campaign} from "@/lib/types/campaigns";
+import {TableCell, TableRow} from "@/components/ui/table";
+import {format, isToday, isYesterday} from "date-fns";
+import {Trash2} from "lucide-react";
+import {DeleteCampaignDialog} from "./delete-campaign-dialog";
+import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,} from "@/components/ui/dropdown-menu";
 
 interface CampaignRowProps {
   campaign: Campaign;

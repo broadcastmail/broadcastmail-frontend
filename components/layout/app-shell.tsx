@@ -1,10 +1,10 @@
-import { redirect } from "next/navigation";
-import { TopNav } from "@/components/layout/top-nav";
-import { getMe } from "@/lib/api/get-me";
-import { UnsavedChangesProvider } from "@/lib/navigation/unsaved-changes-guard";
-import { PlanProvider } from "@/lib/billing/plan-context";
+import {redirect} from "next/navigation";
+import {TopNav} from "@/components/layout/top-nav";
+import {getMe} from "@/lib/api/get-me";
+import {UnsavedChangesProvider} from "@/lib/navigation/unsaved-changes-guard";
+import {PlanProvider} from "@/lib/subscription/plan-context";
 
-export async function AppShell({ children }: { children: React.ReactNode }) {
+export async function AppShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const me = await getMe();
 
   if (!me) {

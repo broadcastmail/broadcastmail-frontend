@@ -1,89 +1,8 @@
-import { faker } from "@faker-js/faker";
-import type { JSONContent } from "@tiptap/core";
-import type { CampaignFilterResponse } from "@/lib/campaigns/audience";
-
-export type CampaignStatus =
-  | "DRAFT"
-  | "RESOLVING"
-  | "SENDING"
-  | "SENT"
-  | "FAILED"
-  | "PARTIALLY_FAILED";
-
-export interface Campaign {
-  id: string;
-  name: string;
-  subject: string;
-  status: CampaignStatus;
-  // Mirrors CreateCampaignPayload's discriminated union (lib/api/campaigns.ts)
-  // — kept as the same two mutually-exclusive shapes here so a fetched
-  // draft can seed the composer exactly the way it would've been sent.
-  source: "visual" | "import";
-  bodyJson: JSONContent | null;
-  bodyHtmlImported: string | null;
-  recipientCount: number | null;
-  sentCount: number;
-  deliveredCount: number;
-  // Cumulative counters, not mutually-exclusive buckets of recipientCount —
-  // a recipient that opened is counted in both deliveredCount (delivery
-  // happened) and openedCount (and later bouncedCount/failedCount are the
-  // only ways to *not* land in deliveredCount). Mirrors the real API's
-  // CampaignResponse (broadcastmail-api/campaign/dto/CampaignResponse.java),
-  // which already tracks openedCount/bouncedCount this way.
-  openedCount: number;
-  bouncedCount: number;
-  failedCount: number;
-  sentAt: string | null;
-  createdAt: string;
-  // Mirrors CampaignResponse.filters — saved order, empty for a campaign
-  // with none (see CampaignResponse.from(campaign) overload with no filters
-  // arg, used for campaigns where they're not relevant, e.g. retries).
-  filters: CampaignFilterResponse[];
-}
-
-// Mirrors the real backend's RecipientStatus enum
-// (broadcastmail-common/campaign/recipient/RecipientStatus.java). SENT and
-// UNSUBSCRIBED are included for shape fidelity but never produced by the
-// mock's simulation below — see mocks/handlers/campaigns.ts.
-export type RecipientStatus =
-  | "QUEUED"
-  | "SENT"
-  | "DELIVERED"
-  | "OPENED"
-  | "BOUNCED"
-  | "FAILED"
-  | "UNSUBSCRIBED";
-
-export interface CampaignRecipient {
-  id: string;
-  email: string;
-  status: RecipientStatus;
-  deliveredAt: string | null;
-  openedAt: string | null;
-  bouncedAt: string | null;
-  failedReason: string | null;
-}
-
-export interface DashboardData {
-  audience: number;
-  audienceSource: string;
-  campaignsSentThisMonth: number;
-  totalDeliveredThisMonth: number;
-  deliveryRate: number;
-  recipientsUsedThisPeriod: number;
-  recipientsLimit: number;
-  campaigns: Campaign[];
-}
+import {faker} from "@faker-js/faker";
+import {type Campaign, CAMPAIGN_STATUSES,} from "@/lib/types/campaigns";
 
 export const fakeCampaign = (overrides?: Partial<Campaign>): Campaign => {
-  const status = faker.helpers.arrayElement<CampaignStatus>([
-    "DRAFT",
-    "RESOLVING",
-    "SENDING",
-    "SENT",
-    "FAILED",
-    "PARTIALLY_FAILED",
-  ]);
+  const status = faker.helpers.arrayElement(CAMPAIGN_STATUSES);
 
   const hasRecipients = !["DRAFT", "RESOLVING"].includes(status);
 
@@ -108,6 +27,9 @@ export const fakeCampaign = (overrides?: Partial<Campaign>): Campaign => {
       : null,
     createdAt: faker.date.recent({ days: 60 }).toISOString(),
     filters: [],
+    audienceMode: null,
+    includedIds: null,
+    excludedIds: null,
     ...overrides,
   };
 };
@@ -122,7 +44,7 @@ export interface AccountEmailProviderInfo {
   fromAddress: string | null;
 }
 
-export const fakeDashboard = (): DashboardData => {
+export const fakeDashboard = () => {
   const campaigns = fakeCampaigns();
   const sent = campaigns.filter((c) => c.status === "SENT");
 

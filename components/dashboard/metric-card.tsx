@@ -1,4 +1,4 @@
-import { cn } from "@/lib/utils";
+import {cn} from "@/lib/utils";
 
 interface MetricCardProps {
   label: string;
@@ -16,11 +16,10 @@ export function MetricCard({
   supporting,
   progress,
   progressColor = "orange",
-}: MetricCardProps) {
+}: Readonly<MetricCardProps>) {
   return (
     <div
-      style={{ background: "rgba(255,255,255,0.035)" }}
-      className="backdrop-blur-sm border border-(--color-border) rounded-xl p-4.5 flex flex-col gap-2.5"
+      className="bg-card backdrop-blur-sm border border-(--color-border) rounded-xl p-4.5 flex flex-col gap-2.5"
     >
       <div className="text-[11.5px] font-medium tracking-[0.04em] uppercase text-text-muted">
         {label}
@@ -40,12 +39,15 @@ export function MetricCard({
       )}
       {progress !== undefined && (
         <div className="h-1 rounded-xs bg-white/8 overflow-hidden">
-          <div
+          <progress
+            value={progress}
+            max={100}
             className={cn(
-              "h-full rounded-xs transition-all duration-700 ease-out",
-              progressColor === "danger" ? "bg-status-failed" : "bg-orange",
+              "block w-full h-1 rounded-full border-0 overflow-hidden bg-white/[0.04] [&::-webkit-progress-bar]:bg-white/[0.04]",
+              progressColor === "danger"
+                ? "[&::-webkit-progress-value]:bg-status-failed [&::-moz-progress-bar]:bg-status-failed"
+                : "[&::-webkit-progress-value]:bg-orange [&::-moz-progress-bar]:bg-orange",
             )}
-            style={{ width: `${progress}%` }}
           />
         </div>
       )}

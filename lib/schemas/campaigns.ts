@@ -1,5 +1,5 @@
-import { z } from "zod";
-import { sanitizeUrl } from "@/lib/campaigns/email-html";
+import {z} from "zod";
+import {sanitizeUrl} from "@/features/campaigns/new/compose/lib/email-html";
 
 // Shared by the Link/Button dialog form (react-hook-form's zodResolver)
 // and the composer's own inserts — normalizes bare domains to https:// and
