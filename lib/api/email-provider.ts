@@ -1,9 +1,6 @@
-import { apiClient } from "@/lib/api/client";
-import {
-  emailProviderSchema,
-  type EmailProviderFormValues,
-} from "@/lib/schemas/onboarding";
-import type { AccountEmailProviderInfo } from "@/mocks/fixtures";
+import {apiClient} from "@/lib/api/client/client";
+import {type EmailProviderFormValues, emailProviderSchema,} from "@/lib/schemas/onboarding";
+import type {AccountEmailProviderInfo} from "@/mocks/fixtures";
 
 // No server-only imports — called from the "use client" email-provider form.
 export async function connectEmailProvider(

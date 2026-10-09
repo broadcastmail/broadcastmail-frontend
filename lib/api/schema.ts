@@ -1,9 +1,6 @@
-import { apiClient } from "@/lib/api/client";
-import type {
-  DetectedSchema,
-  SchemaIntrospectionResult,
-} from "@/lib/types/onboarding";
-import type { ConnectionProject } from "@/lib/types/connection";
+import {apiClient} from "@/lib/api/client/client";
+import type {DetectedSchema, SchemaIntrospectionResult,} from "@/lib/types/onboarding";
+import type {ConnectionProject} from "@/lib/types/connection";
 
 // Reconfigure (mid-OAuth) schema fetch — GET /api/v1/connections/schema.
 export async function getReconfigureSchema(): Promise<SchemaIntrospectionResult | null> {

@@ -1,15 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { Campaign } from "@/mocks/fixtures";
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogFooter,
-} from "@/components/ui/alert-dialog";
-import { isAxiosError } from "axios";
-import { apiClient } from "@/lib/api/client";
-import { removeSessionDraft } from "@/lib/campaigns/session-drafts";
+import {useState} from "react";
+import {Campaign} from "@/lib/types/campaigns";
+import {AlertDialog, AlertDialogContent, AlertDialogFooter,} from "@/components/ui/alert-dialog";
+import {isAxiosError} from "axios";
+import {apiClient} from "@/lib/api/client/client";
+import {removeSessionDraft} from "@/features/campaigns/shared/session-drafts";
 
 interface DeleteCampaignDialogProps {
   open: boolean;
@@ -31,7 +27,7 @@ export function DeleteCampaignDialog({
   onOpenChange,
   campaign,
   onDeleted,
-}: DeleteCampaignDialogProps) {
+}: Readonly<DeleteCampaignDialogProps>) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 

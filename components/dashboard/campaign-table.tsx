@@ -1,12 +1,6 @@
-import { Campaign } from "@/mocks/fixtures";
-import { CampaignRow } from "./campaign-row";
-import {
-  Table,
-  TableBody,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import {Campaign} from "@/lib/types/campaigns";
+import {CampaignRow} from "./campaign-row";
+import {Table, TableBody, TableHead, TableHeader, TableRow,} from "@/components/ui/table";
 
 interface CampaignTableProps {
   campaigns: Campaign[];

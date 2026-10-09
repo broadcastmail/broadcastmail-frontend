@@ -1,22 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { createCampaign } from "@/lib/api/campaigns";
-import { EMPTY_DOC } from "@/lib/campaigns/editor-extensions";
-import { addSessionDraft } from "@/lib/campaigns/session-drafts";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
-import { cn } from "@/lib/utils";
+import {useState} from "react";
+import {useRouter} from "next/navigation";
+import {createCampaign} from "@/features/campaigns/api/campaigns";
+import {EMPTY_DOC} from "@/features/campaigns/new/compose/lib/editor-extensions";
+import {addSessionDraft} from "@/features/campaigns/shared/session-drafts";
+import {Tooltip, TooltipContent, TooltipTrigger,} from "@/components/ui/tooltip";
+import {cn} from "@/lib/utils";
 
 interface NewCampaignButtonProps {
   configured: boolean;
 }
 
-export function NewCampaignButton({ configured }: NewCampaignButtonProps) {
+export function NewCampaignButton({ configured }: Readonly<NewCampaignButtonProps>) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
 

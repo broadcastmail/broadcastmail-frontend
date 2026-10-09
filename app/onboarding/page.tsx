@@ -1,6 +1,6 @@
-import { redirect } from "next/navigation";
-import { getOnboardingStatus } from "@/lib/api/onboarding";
-import { ONBOARDING_STEP_PATH } from "@/lib/onboarding-steps";
+import {redirect} from "next/navigation";
+import {getOnboardingStatus} from "@/features/onboarding/api/onboarding";
+import {ONBOARDING_STEP_PATH} from "@/lib/onboarding-steps";
 
 // No real backend redirect ever lands here directly — every OAuth outcome
 // targets a specific step route. This exists as a resume entry point: if

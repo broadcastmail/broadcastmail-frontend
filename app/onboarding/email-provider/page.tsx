@@ -1,12 +1,12 @@
-import { redirect } from "next/navigation";
-import { getOnboardingStatus, getSchemaIntrospection } from "@/lib/api/onboarding";
-import { ONBOARDING_STEP_PATH } from "@/lib/onboarding-steps";
-import { OnboardingShell } from "@/components/onboarding/onboarding-shell";
-import { EmailProviderForm } from "@/components/onboarding/email-provider/email-provider-form";
+import {redirect} from "next/navigation";
+import {getOnboardingStatus, getSchemaIntrospection} from "@/features/onboarding/api/onboarding";
+import {ONBOARDING_STEP_PATH} from "@/lib/onboarding-steps";
+import {OnboardingShell} from "@/components/onboarding/onboarding-shell";
+import {EmailProviderForm} from "@/components/onboarding/email-provider/email-provider-form";
 
 export default async function EmailProviderPage() {
   const status = await getOnboardingStatus();
-  if (!status || status.step !== "CONNECT_RESEND") {
+  if (status?.step !== "CONNECT_RESEND") {
     redirect(status ? ONBOARDING_STEP_PATH[status.step] : "/");
   }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import type { CampaignStatus } from "@/mocks/fixtures";
+import type {CampaignStatus} from "@/lib/types/campaigns";
 
 interface StatusBadgeProps {
   status: CampaignStatus;
@@ -46,7 +46,7 @@ const statusConfig: Record<
   },
 };
 
-export function StatusBadge({ status }: StatusBadgeProps) {
+export function StatusBadge({ status }: Readonly<StatusBadgeProps>) {
   const config = statusConfig[status];
 
   return (

@@ -1,21 +1,17 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { apiClient } from "@/lib/api/client";
-import { selectTable } from "@/lib/api/schema";
-import { ONBOARDING_STEP_PATH } from "@/lib/onboarding-steps";
-import type {
-  DetectedSchema,
-  ResolvedSchema,
-  SchemaIntrospectionResult,
-} from "@/lib/types/onboarding";
-import { NoSchemaView } from "./no-schema-view";
-import { TablePickerView } from "./table-picker-view";
-import { FallbackView } from "./fallback-view";
-import { ReviewView } from "./review-view";
-import { ColumnsView } from "./columns-view";
-import { columnKey, columnNameFromKey } from "./column-key";
+import {useState} from "react";
+import {useRouter} from "next/navigation";
+import {apiClient} from "@/lib/api/client/client";
+import {selectTable} from "@/lib/api/schema";
+import {ONBOARDING_STEP_PATH} from "@/lib/onboarding-steps";
+import type {DetectedSchema, ResolvedSchema, SchemaIntrospectionResult,} from "@/lib/types/onboarding";
+import {NoSchemaView} from "./no-schema-view";
+import {TablePickerView} from "./table-picker-view";
+import {FallbackView} from "./fallback-view";
+import {ReviewView} from "./review-view";
+import {ColumnsView} from "./columns-view";
+import {columnKey, columnNameFromKey} from "./column-key";
 
 // table-picker -> columns -> review -> (fallback if confirm fails)
 type View = "table-picker" | "columns" | "review" | "fallback";

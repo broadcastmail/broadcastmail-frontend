@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
-import { store, filtersStore } from "@/mocks/campaign-store";
-import type { Campaign } from "@/mocks/fixtures";
-import type { AudienceFilterPayload } from "@/lib/campaigns/audience";
+import {NextResponse} from "next/server";
+import {type AudienceDefinition, audienceStore, filtersStore, store} from "@/mocks/campaign-store";
+import type {Campaign} from "@/lib/types/campaigns";
+import type {AudienceFilterPayload} from "@/features/campaigns/new/audience/audience";
+
 /**
 A real route (not an MSW-intercepted one — "/api/mock-store/*" matches no
 "/api/v1/*" handler pattern) that the browser's mock campaign
@@ -19,10 +20,14 @@ export async function POST(request: Request) {
   const body = (await request.json()) as {
     campaign: Campaign;
     filters?: AudienceFilterPayload[];
+    audience?: AudienceDefinition;
   };
   store.set(body.campaign.id, body.campaign);
   if (body.filters !== undefined) {
     filtersStore.set(body.campaign.id, body.filters);
+  }
+  if (body.audience !== undefined) {
+    audienceStore.set(body.campaign.id, body.audience);
   }
   return NextResponse.json({ ok: true });
 }

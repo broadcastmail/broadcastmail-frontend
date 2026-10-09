@@ -1,10 +1,10 @@
-import { CampaignRouter } from "@/components/campaigns/campaign-router";
+import {CampaignRouter} from "@/features/campaigns/campaign-router";
 
 export default async function CampaignPage({
   params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+}: Readonly<{
+    params: Promise<{ id: string }>;
+}>) {
   const { id } = await params;
-  return <CampaignRouter campaignId={id} />;
+  return <div className="h-full min-h-0 overflow-hidden"><CampaignRouter campaignId={id} /></div>;
 }
