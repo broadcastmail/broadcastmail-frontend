@@ -35,10 +35,6 @@ export function useSendStream({
   const esRef = useRef<EventSource | null>(null);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Keep recipientCount fresh for the send call
-  const recipientCountRef = useRef(recipientCount);
-  recipientCountRef.current = recipientCount;
-
   function closeStream() {
     esRef.current?.close();
     esRef.current = null;
@@ -61,7 +57,7 @@ export function useSendStream({
     try {
       await saveNow();
       setState({ stage: "sending", finalCount: null });
-      await confirmCampaign(campaignId, recipientCountRef.current);
+      await confirmCampaign(campaignId, recipientCount);
       setState({ stage: "resolving", finalCount: null });
 
       const es = new EventSource(`/api/v1/campaigns/${campaignId}/status/stream`);
