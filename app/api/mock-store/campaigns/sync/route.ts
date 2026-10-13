@@ -13,6 +13,18 @@ Node-side mock handlers run in the same process, so they already share
 one module instance of mocks/campaign-store.ts directly — only the
 browser, a genuinely separate JS engine, needs this HTTP bridge at all.
 */
+export async function GET() {
+  if (process.env.NODE_ENV !== "development") {
+    return new NextResponse(null, { status: 404 });
+  }
+  const entries = [...store.entries()].map(([id, campaign]) => ({
+    campaign,
+    filters: filtersStore.get(id),
+    audience: audienceStore.get(id),
+  }));
+  return NextResponse.json(entries);
+}
+
 export async function POST(request: Request) {
   if (process.env.NODE_ENV !== "development") {
     return new NextResponse(null, { status: 404 });

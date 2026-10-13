@@ -37,7 +37,7 @@ export function DetailHeader({
       <div className="flex items-center justify-between gap-6">
         <div className="flex items-center gap-3 min-w-0">
           <h1 className="text-[24px] font-semibold text-text-primary tracking-[-0.02em] whitespace-nowrap overflow-hidden text-ellipsis">
-            {campaign.name}
+            {campaign.retryOfCampaignId ? `Retry of: ${campaign.name}` : campaign.name}
           </h1>
           <StatusBadge status={status} />
         </div>

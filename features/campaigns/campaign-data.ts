@@ -56,7 +56,7 @@ export async function getComposerData(campaign: Campaign): Promise<ComposerData>
     serverApiClient.get<AudienceListResponse>("/api/v1/audience/list", {
       params: {
         limit: 50,
-        ...(savedFilterPayloads.length ? { filters: JSON.stringify(savedFilterPayloads) } : {}),
+        filters: JSON.stringify(savedFilterPayloads),
       },
     }),
   ]);

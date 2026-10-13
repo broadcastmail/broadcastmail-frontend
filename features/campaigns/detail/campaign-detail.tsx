@@ -1,14 +1,13 @@
 "use client";
 
 import {useCallback, useEffect, useMemo, useState} from "react";
+import {useRouter} from "next/navigation";
+import {isAxiosError} from "axios";
 import {getCampaign, retryCampaign, retryFailedRecipients,} from "@/features/campaigns/api/campaigns";
-import {getAccountEmailProvider} from "@/lib/api/email-provider";
 import type {Campaign} from "@/lib/types/campaigns";
 import {useCampaignStatusStream} from "@/features/campaigns/shared/use-campaign-status-stream";
 import {Spinner} from "@/components/onboarding/spinner";
-import {jsonToHtml} from "@/features/campaigns/new/compose/lib/editor-extensions";
 import {wrapEmailShell} from "@/features/campaigns/new/compose/lib/email-html";
-import {sanitizeHtmlSource} from "@/features/campaigns/new/compose/lib/sanitize-html-source";
 import {DetailHeader} from "./detail-header";
 import {DetailPreviewPanel} from "./detail-preview-panel";
 import {StatCards} from "./stat-cards";
@@ -18,26 +17,20 @@ import {RecipientTable} from "./recipient-table";
 
 interface CampaignDetailProps {
   campaignId: string;
+  resendConfigured: boolean;
 }
 
-export function CampaignDetail({ campaignId }: Readonly<CampaignDetailProps>) {
+const RETRY_CONFLICT_MSG = "A retry campaign already exists for this campaign.";
+const RETRY_GENERIC_MSG = "Couldn't complete the retry. Try again in a moment.";
+
+export function CampaignDetail({ campaignId, resendConfigured }: Readonly<CampaignDetailProps>) {
+  const router = useRouter();
   const [baseCampaign, setBaseCampaign] = useState<Campaign | null>(null);
   const [loading, setLoading] = useState(true);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  const [retryError, setRetryError] = useState(false);
-  const [resendConfigured, setResendConfigured] = useState(false);
-  const [reconnectKey, setReconnectKey] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    getAccountEmailProvider().then((provider) => {
-      if (!cancelled) setResendConfigured(!!provider?.fromAddress);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const [retryError, setRetryError] = useState<string | null>(null);
+  const [retryConflict, setRetryConflict] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -54,7 +47,7 @@ export function CampaignDetail({ campaignId }: Readonly<CampaignDetailProps>) {
   }, [load]);
 
 
-  const liveEvent = useCampaignStatusStream(campaignId, reconnectKey);
+  const liveEvent = useCampaignStatusStream(campaignId, 0);
 
   const campaign = useMemo(() => {
     if (!baseCampaign) return null;
@@ -74,13 +67,14 @@ export function CampaignDetail({ campaignId }: Readonly<CampaignDetailProps>) {
   async function handleRetry() {
     if (retrying || !resendConfigured) return;
     setRetrying(true);
-    setRetryError(false);
+    setRetryError(null);
     try {
-      await retryCampaign(campaignId);
-      await load();
-      setReconnectKey((k) => k + 1);
-    } catch {
-      setRetryError(true);
+      const result = await retryCampaign(campaignId);
+      router.push(`/dashboard/campaigns/${result.id}`);
+    } catch (err) {
+      const is409 = isAxiosError(err) && err.response?.status === 409;
+      setRetryError(is409 ? RETRY_CONFLICT_MSG : RETRY_GENERIC_MSG);
+      if (is409) setRetryConflict(true);
     } finally {
       setRetrying(false);
     }
@@ -89,13 +83,14 @@ export function CampaignDetail({ campaignId }: Readonly<CampaignDetailProps>) {
   async function handleRetryFailed() {
     if (retrying || !resendConfigured) return;
     setRetrying(true);
-    setRetryError(false);
+    setRetryError(null);
     try {
-      await retryFailedRecipients(campaignId);
-      await load();
-      setReconnectKey((k) => k + 1);
-    } catch {
-      setRetryError(true);
+      const result = await retryFailedRecipients(campaignId);
+      router.push(`/dashboard/campaigns/${result.id}`);
+    } catch (err) {
+      const is409 = isAxiosError(err) && err.response?.status === 409;
+      setRetryError(is409 ? RETRY_CONFLICT_MSG : RETRY_GENERIC_MSG);
+      if (is409) setRetryConflict(true);
     } finally {
       setRetrying(false);
     }
@@ -103,11 +98,7 @@ export function CampaignDetail({ campaignId }: Readonly<CampaignDetailProps>) {
 
   const previewDoc = useMemo(() => {
     if (!campaign) return "";
-    const bodyHtml =
-      campaign.source === "visual"
-        ? jsonToHtml(campaign.bodyJson ?? { type: "doc", content: [] })
-        : sanitizeHtmlSource(campaign.bodyHtmlImported ?? "");
-    return wrapEmailShell(bodyHtml);
+    return wrapEmailShell(campaign.bodyHtml ?? "");
   }, [campaign]);
 
   if (loading || !campaign) {
@@ -121,11 +112,12 @@ export function CampaignDetail({ campaignId }: Readonly<CampaignDetailProps>) {
   const deadEnd = campaign.status === "FAILED";
   const inProgress =
     campaign.status === "RESOLVING" || campaign.status === "SENDING";
-  const showRetryStrip = !inProgress && !deadEnd && campaign.failedCount > 0;
+  const showRetryStrip =
+    !inProgress && !deadEnd && !retryConflict && campaign.failedCount > 0;
 
   return (
-    <div className="flex-1 overflow-y-auto px-8 py-9 flex justify-center">
-      <div className="w-full max-w-280 shrink-0 flex flex-col gap-6">
+    <div className="flex-1 min-h-0 overflow-y-auto bm-scrollbar px-8 py-9">
+      <div className="w-full max-w-280 mx-auto flex flex-col gap-6">
         <DetailHeader
           campaign={campaign}
           previewOpen={previewOpen}
@@ -143,7 +135,8 @@ export function CampaignDetail({ campaignId }: Readonly<CampaignDetailProps>) {
           <DeadEnd
             onRetry={handleRetry}
             retrying={retrying}
-            error={retryError}
+            canRetry={!campaign.retryOfCampaignId && !retryConflict}
+            errorMessage={retryError}
             resendConfigured={resendConfigured}
           />
         ) : (
@@ -154,7 +147,7 @@ export function CampaignDetail({ campaignId }: Readonly<CampaignDetailProps>) {
                 failedCount={campaign.failedCount}
                 onRetry={handleRetryFailed}
                 retrying={retrying}
-                error={retryError}
+                errorMessage={retryError}
                 resendConfigured={resendConfigured}
               />
             )}

@@ -3,7 +3,6 @@
 import {useState} from "react";
 import {useRouter} from "next/navigation";
 import {createCampaign} from "@/features/campaigns/api/campaigns";
-import {EMPTY_DOC} from "@/features/campaigns/new/compose/lib/editor-extensions";
 import {addSessionDraft} from "@/features/campaigns/shared/session-drafts";
 import {Tooltip, TooltipContent, TooltipTrigger,} from "@/components/ui/tooltip";
 import {cn} from "@/lib/utils";
@@ -23,8 +22,7 @@ export function NewCampaignButton({ configured }: Readonly<NewCampaignButtonProp
       const campaign = await createCampaign({
         name: "Untitled campaign",
         subject: "",
-        source: "visual",
-        bodyJson: EMPTY_DOC,
+        bodyHtml: "",
       });
       addSessionDraft(campaign);
       router.push(`/dashboard/campaigns/${campaign.id}`);

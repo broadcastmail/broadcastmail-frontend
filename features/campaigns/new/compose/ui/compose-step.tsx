@@ -59,7 +59,7 @@ export function ComposeStep({
     name: draft.name,
     subject: draft.subject,
     source: draft.source,
-    visualBodyJson: draft.visualBody.json,
+    visualBodyHtml: draft.visualBody.html,
     importedHtml: draft.importedHtml,
   });
   const [saveError, setSaveError] = useState<Error | null>(null);

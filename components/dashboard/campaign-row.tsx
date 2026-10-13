@@ -48,7 +48,14 @@ export function CampaignRow({ campaign }: Readonly<CampaignRowProps>) {
         onClick={() => router.push(`/dashboard/campaigns/${campaign.id}`)}
       >
         <TableCell className="py-2.75 px-4.5 text-[14px] text-text-primary w-full min-w-35">
-          {campaign.name}
+          <div className="flex items-center gap-2">
+            {campaign.name}
+            {campaign.retryOfCampaignId && (
+              <span className="text-[10.5px] font-medium text-text-dim border border-white/10 rounded px-1.5 py-0.5 leading-none">
+                Retry
+              </span>
+            )}
+          </div>
         </TableCell>
         <TableCell className="py-3 px-4.5 w-24">
           <StatusBadge status={campaign.status} />

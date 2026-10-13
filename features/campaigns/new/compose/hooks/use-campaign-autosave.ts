@@ -1,7 +1,6 @@
 "use client";
 
 import {useCallback, useEffect, useRef, useState} from "react";
-import type {JSONContent} from "@tiptap/core";
 import {type CreateCampaignPayload, updateCampaign,} from "@/features/campaigns/api/campaigns";
 import {updateSessionDraft} from "@/features/campaigns/shared/session-drafts";
 import {sanitizeHtmlSource} from "@/features/campaigns/new/compose/lib/sanitize-html-source";
@@ -13,7 +12,7 @@ interface UseCampaignAutosaveOptions {
   name: string;
   subject: string;
   source: "visual" | "import";
-  visualBodyJson: JSONContent;
+  visualBodyHtml: string;
   importedHtml: string;
   delayMs?: number;
 }
@@ -28,7 +27,7 @@ interface CampaignSnapshot {
   name: string;
   subject: string;
   source: "visual" | "import";
-  visualBodyJson: JSONContent;
+  visualBodyHtml: string;
   importedHtml: string;
 }
 
@@ -46,7 +45,7 @@ export function useCampaignAutosave({
   name,
   subject,
   source,
-  visualBodyJson,
+  visualBodyHtml,
   importedHtml,
   delayMs = 1000,
 }: UseCampaignAutosaveOptions): UseCampaignAutosaveResult {
@@ -54,14 +53,14 @@ export function useCampaignAutosave({
 
   // Kept fresh every render so saveNow() always sends what's on screen
   // right now, not whatever it was when saveNow was created.
-  const latestRef = useRef({ name, subject, source, visualBodyJson, importedHtml });
-  latestRef.current = { name, subject, source, visualBodyJson, importedHtml };
+  const latestRef = useRef({ name, subject, source, visualBodyHtml, importedHtml });
+  latestRef.current = { name, subject, source, visualBodyHtml, importedHtml };
 
   // Baseline "dirty" compares against — the fields as of the last
   // successful save.
   const committedRef = useRef<CampaignSnapshot | null>(null);
   if (enabled && committedRef.current === null) {
-    committedRef.current = { name, subject, source, visualBodyJson, importedHtml };
+    committedRef.current = { name, subject, source, visualBodyHtml, importedHtml };
   }
   const committed = committedRef.current;
   const dirty =
@@ -70,14 +69,13 @@ export function useCampaignAutosave({
     (name !== committed.name ||
       subject !== committed.subject ||
       source !== committed.source ||
-      visualBodyJson !== committed.visualBodyJson ||
+      visualBodyHtml !== committed.visualBodyHtml ||
       importedHtml !== committed.importedHtml);
 
   const buildPayload = useCallback((): CreateCampaignPayload => {
     const l = latestRef.current;
-    return l.source === "visual"
-      ? { name: l.name, subject: l.subject, source: "visual", bodyJson: l.visualBodyJson }
-      : { name: l.name, subject: l.subject, source: "import", bodyHtmlImported: sanitizeHtmlSource(l.importedHtml) };
+    const bodyHtml = l.source === "visual" ? l.visualBodyHtml : sanitizeHtmlSource(l.importedHtml);
+    return { name: l.name, subject: l.subject, bodyHtml };
   }, []);
 
   const { schedule: scheduleSave, cancel: cancelScheduledSave } = useDebounceController();
@@ -122,7 +120,7 @@ export function useCampaignAutosave({
     name,
     subject,
     source,
-    visualBodyJson,
+    visualBodyHtml,
     importedHtml,
     scheduleSave,
     cancelScheduledSave,

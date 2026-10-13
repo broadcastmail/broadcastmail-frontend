@@ -6,5 +6,5 @@ export default async function CampaignPage({
     params: Promise<{ id: string }>;
 }>) {
   const { id } = await params;
-  return <div className="h-full min-h-0 overflow-hidden"><CampaignRouter campaignId={id} /></div>;
+  return <div className="h-full min-h-0 overflow-hidden flex flex-col"><CampaignRouter campaignId={id} /></div>;
 }
