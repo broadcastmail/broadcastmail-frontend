@@ -117,6 +117,7 @@ function generateRecipients(total: number, forceFailures?: boolean): SimState["r
       id: faker.string.uuid(),
       email: faker.internet.email().toLowerCase(),
       status,
+      sentAt: null,
       deliveredAt: null,
       openedAt: null,
       bouncedAt: null,
@@ -177,9 +178,11 @@ function withRevealTimes(
 function freeze(id: string, patch: Partial<Campaign>) {
   const existing = store.get(id);
   if (!existing) return;
-  store.set(id, { ...existing, ...patch });
+  const updated = { ...existing, ...patch };
+  store.set(id, updated);
   const sim = sims.get(id);
   if (sim) sim.frozen = true;
+  void syncToServer(updated);
 }
 
 /** Starts (or restarts) the live-progressing lifecycle for a just-confirmed
@@ -300,6 +303,7 @@ function resolveRecipients(id: string): CampaignRecipient[] {
         id: r.id,
         email: r.email,
         status: "QUEUED" as const,
+        sentAt: null,
         deliveredAt: null,
         openedAt: null,
         bouncedAt: null,
@@ -367,6 +371,19 @@ faker.seed(20260830); // fixed, arbitrary — only needs to match itself across 
 for (let i = 0; i < SEED_COUNT; i++) seedDemoCampaign(GUARANTEED_STATUSES[i]);
 faker.seed(); // back to non-deterministic for everything from here on
 
+function isActiveCampaign(c: Campaign) {
+  return c.status === "RESOLVING" || c.status === "SENDING";
+}
+
+function flushTerminated(inFlight: Set<string>, activeIds: Set<string>, controller: ReadableStreamDefaultController) {
+  for (const id of inFlight) {
+    if (!activeIds.has(id)) {
+      controller.enqueue(encodeStatusEvent(resolveCampaign(id)));
+      inFlight.delete(id);
+    }
+  }
+}
+
 export const campaignHandlers = [
   http.get("*/api/v1/campaigns", () => {
     const campaigns = [...store.keys()]
@@ -414,24 +431,21 @@ export const campaignHandlers = [
     let cancelled = false;
     const stream = new ReadableStream({
       async start(controller) {
+        const inFlight = new Set<string>();
         while (!cancelled) {
-          const active = [...store.keys()]
-            .map(resolveCampaign)
-            .filter((c) => c.status === "RESOLVING" || c.status === "SENDING");
-          if (active.length === 0) {
-            controller.close();
-            return;
-          }
+          const active = [...store.keys()].map(resolveCampaign).filter(isActiveCampaign);
+          const activeIds = new Set(active.map((c) => c.id));
+          flushTerminated(inFlight, activeIds, controller);
+          if (active.length === 0 && inFlight.size === 0) { controller.close(); return; }
           for (const campaign of active) {
             if (cancelled) return;
+            inFlight.add(campaign.id);
             controller.enqueue(encodeStatusEvent(campaign));
           }
           await sleep(2000);
         }
       },
-      cancel() {
-        cancelled = true;
-      },
+      cancel() { cancelled = true; },
     });
     return new HttpResponse(stream, { headers: SSE_HEADERS });
   }),
@@ -514,6 +528,15 @@ export const campaignHandlers = [
     const id = params.id as string;
     if (!store.has(id)) return new HttpResponse(null, { status: 404 });
     await request.json().catch(() => ({}));
+    const hasActiveCampaign = [...store.keys()]
+      .filter((k) => k !== id)
+      .some((k) => { const s = resolveCampaign(k).status; return s === "RESOLVING" || s === "SENDING"; });
+    if (hasActiveCampaign) {
+      return HttpResponse.json(
+        { error: "Another campaign is currently sending. Wait for it to finish before sending a new one." },
+        { status: 409 },
+      );
+    }
     const audience = audienceStore.get(id);
     const savedFilters = filtersStore.get(id) ?? [];
     // Mirror CampaignConfirmService: reject if no audience mode and no filters.
@@ -539,8 +562,30 @@ export const campaignHandlers = [
     const id = params.id as string;
     const existing = store.get(id);
     if (!existing) return new HttpResponse(null, { status: 404 });
-    startSimulation(id, existing.recipientCount ?? faker.number.int({ min: 40, max: 400 }));
-    return new HttpResponse(null, { status: 202 });
+    if (existing.status !== "FAILED")
+      return HttpResponse.json({ error: "Campaign is not in FAILED status" }, { status: 409 });
+    const retryExists = [...store.values()].some((c) => c.retryOfCampaignId === id);
+    if (retryExists)
+      return HttpResponse.json({ error: "A retry campaign already exists" }, { status: 409 });
+    const retryCampaign = fakeCampaign({
+      retryOfCampaignId: id,
+      name: existing.name,
+      subject: existing.subject,
+      bodyHtml: existing.bodyHtml,
+      status: "DRAFT",
+      recipientCount: null,
+      sentCount: 0,
+      deliveredCount: 0,
+      openedCount: 0,
+      bouncedCount: 0,
+      failedCount: 0,
+      sentAt: null,
+      createdAt: new Date().toISOString(),
+    });
+    store.set(retryCampaign.id, retryCampaign);
+    startSimulation(retryCampaign.id, existing.recipientCount ?? faker.number.int({ min: 40, max: 400 }));
+    await syncToServer(store.get(retryCampaign.id) as Campaign);
+    return HttpResponse.json(withFilters(resolveCampaign(retryCampaign.id)), { status: 202 });
   }),
 
   http.post(
@@ -548,26 +593,34 @@ export const campaignHandlers = [
     async ({ params }) => {
       await delay(1800);
       const id = params.id as string;
+      const existing = store.get(id);
+      if (!existing) return new HttpResponse(null, { status: 404 });
+      const retryExists = [...store.values()].some((c) => c.retryOfCampaignId === id);
+      if (retryExists)
+        return HttpResponse.json({ error: "A retry campaign already exists" }, { status: 409 });
       const sim = sims.get(id);
-      if (!sim) return new HttpResponse(null, { status: 404 });
-
-      // ~80% of a retry succeeds — matches "some of these were transient."
-      sim.recipients = sim.recipients.map((r) => {
-        if (r.status !== "FAILED" && r.status !== "BOUNCED") return r;
-        if (!chance(0.8)) return r; // still fails
-        return { ...r, status: "DELIVERED" as const, failedReason: null };
+      const failedRecipients = sim
+        ? sim.recipients.filter((r) => r.status === "FAILED" || r.status === "BOUNCED")
+        : [];
+      const retryCampaign = fakeCampaign({
+        retryOfCampaignId: id,
+        name: existing.name,
+        subject: existing.subject,
+        bodyHtml: existing.bodyHtml,
+        status: "DRAFT",
+        recipientCount: null,
+        sentCount: 0,
+        deliveredCount: 0,
+        openedCount: 0,
+        bouncedCount: 0,
+        failedCount: 0,
+        sentAt: null,
+        createdAt: new Date().toISOString(),
       });
-
-      const final = withRevealTimes(sim.recipients, sim.confirmedAt);
-      const counts = countByStatus(final);
-      freeze(id, {
-        status: statusFromCounts(counts),
-        deliveredCount: counts.delivered,
-        openedCount: counts.opened,
-        failedCount: counts.failed,
-        bouncedCount: counts.bounced,
-      });
-      return new HttpResponse(null, { status: 202 });
+      store.set(retryCampaign.id, retryCampaign);
+      startSimulation(retryCampaign.id, Math.max(1, failedRecipients.length));
+      await syncToServer(store.get(retryCampaign.id) as Campaign);
+      return HttpResponse.json(withFilters(resolveCampaign(retryCampaign.id)), { status: 202 });
     },
   ),
 
@@ -579,7 +632,9 @@ export const campaignHandlers = [
     const size = Number(url.searchParams.get("size") ?? 8);
 
     const all = resolveRecipients(id);
-    const filtered = status ? all.filter((r) => r.status === status) : all;
+    let filtered = all;
+    if (status === "DELIVERED") filtered = all.filter((r) => r.status === "DELIVERED" || r.status === "OPENED");
+    else if (status) filtered = all.filter((r) => r.status === status);
     const start = page * size;
 
     return HttpResponse.json({

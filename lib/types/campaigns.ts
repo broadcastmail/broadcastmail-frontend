@@ -1,4 +1,3 @@
-import type {JSONContent} from "@tiptap/core";
 import type {CampaignFilterResponse} from "@/features/campaigns/new/audience/audience";
 
 export type AudienceMode = "manual" | "filter" | "all";
@@ -25,9 +24,8 @@ export interface Campaign {
   name: string;
   subject: string;
   status: CampaignStatus;
-  source: "visual" | "import";
-  bodyJson: JSONContent | null;
-  bodyHtmlImported: string | null;
+  bodyHtml: string | null;
+  retryOfCampaignId: string | null;
   recipientCount: number | null;
   sentCount: number;
   deliveredCount: number;
@@ -55,6 +53,7 @@ export interface CampaignRecipient {
   id: string;
   email: string;
   status: RecipientStatus;
+  sentAt: string | null;
   deliveredAt: string | null;
   openedAt: string | null;
   bouncedAt: string | null;

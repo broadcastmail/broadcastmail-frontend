@@ -37,9 +37,7 @@ export async function listAudience(params: {
     cursor: params.cursor ?? undefined,
     limit: params.limit ?? 50,
   };
-  if (params.filters?.length) {
-    query.filters = JSON.stringify(params.filters);
-  }
+  query.filters = JSON.stringify(params.filters ?? []);
   if (params.sortKey) {
     query.sortKey = params.sortKey;
     query.sortDirection = params.sortDirection ?? "asc";

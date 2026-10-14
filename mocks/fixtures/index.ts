@@ -11,9 +11,8 @@ export const fakeCampaign = (overrides?: Partial<Campaign>): Campaign => {
     name: faker.lorem.words(3),
     subject: faker.lorem.sentence(),
     status,
-    source: "visual",
-    bodyJson: null,
-    bodyHtmlImported: null,
+    bodyHtml: null,
+    retryOfCampaignId: null,
     recipientCount: hasRecipients
       ? faker.number.int({ min: 10, max: 500 })
       : null,

@@ -6,7 +6,7 @@ interface RetryStripProps {
   failedCount: number;
   onRetry: () => void;
   retrying: boolean;
-  error: boolean;
+  errorMessage: string | null;
   resendConfigured: boolean;
 }
 
@@ -14,7 +14,7 @@ export function RetryStrip({
   failedCount,
   onRetry,
   retrying,
-  error,
+  errorMessage,
   resendConfigured,
 }: Readonly<RetryStripProps>) {
   const disabled = retrying || !resendConfigured;
@@ -56,9 +56,9 @@ export function RetryStrip({
           </span>{" "}
           recipients didn&apos;t receive this email.
         </div>
-        {error && (
+        {errorMessage && (
           <div className="text-[12px] text-status-failed">
-            Couldn&apos;t retry those recipients. Try again in a moment.
+            {errorMessage}
           </div>
         )}
       </div>

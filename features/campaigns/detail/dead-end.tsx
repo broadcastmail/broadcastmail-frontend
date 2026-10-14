@@ -5,14 +5,16 @@ import {cn} from "@/lib/utils";
 interface DeadEndProps {
   onRetry: () => void;
   retrying: boolean;
-  error: boolean;
+  canRetry: boolean;
+  errorMessage: string | null;
   resendConfigured: boolean;
 }
 
 export function DeadEnd({
   onRetry,
   retrying,
-  error,
+  canRetry,
+  errorMessage,
   resendConfigured,
 }: Readonly<DeadEndProps>) {
   const disabled = retrying || !resendConfigured;
@@ -55,7 +57,7 @@ export function DeadEnd({
       <div className="text-[13.5px] text-[#8E8E9A] text-center text-balance">
         Resolution failed before any emails were delivered.
       </div>
-      {resendConfigured || retrying ? (
+      {canRetry && (resendConfigured || retrying ? (
         button
       ) : (
         <Tooltip>
@@ -64,10 +66,10 @@ export function DeadEnd({
             Connect Resend in Settings before retrying
           </TooltipContent>
         </Tooltip>
-      )}
-      {error && (
+      ))}
+      {errorMessage && (
         <div className="text-[12.5px] text-status-failed">
-          Couldn&apos;t retry this campaign. Try again in a moment.
+          {errorMessage}
         </div>
       )}
     </div>

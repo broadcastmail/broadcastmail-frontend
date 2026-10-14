@@ -1,4 +1,5 @@
 import {getCampaign, getComposerData} from "@/features/campaigns/campaign-data";
+import {getAccountEmailProvider} from "@/lib/api/account";
 import {NewCampaignForm} from "./new/new-campaign-form";
 import {CampaignDetail} from "./detail/campaign-detail";
 
@@ -10,7 +11,8 @@ export async function CampaignRouter({ campaignId }: Readonly<CampaignRouterProp
   const campaign = await getCampaign(campaignId);
 
   if (campaign.status !== "DRAFT") {
-    return <CampaignDetail campaignId={campaignId} />;
+    const emailProvider = await getAccountEmailProvider();
+    return <CampaignDetail campaignId={campaignId} resendConfigured={!!emailProvider?.fromAddress} />;
   }
 
   const composerData = await getComposerData(campaign);

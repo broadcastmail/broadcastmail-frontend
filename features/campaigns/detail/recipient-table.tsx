@@ -76,7 +76,7 @@ export function RecipientTable({ campaignId, campaign }: Readonly<RecipientTable
 
   const counts: Record<string, number> = {
     ALL: campaign.recipientCount ?? 0,
-    DELIVERED: Math.max(0, campaign.deliveredCount - campaign.openedCount),
+    DELIVERED: campaign.deliveredCount,
     OPENED: campaign.openedCount,
     FAILED: campaign.failedCount,
     BOUNCED: campaign.bouncedCount,
