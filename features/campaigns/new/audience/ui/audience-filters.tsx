@@ -66,7 +66,8 @@ export function AudienceFilters({
     onPatch(id, patch);
     if (!patch.column) return;
     setValuesByFilterId((current) => {
-      const { [id]: _, ...rest } = current;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { [id]: _removed, ...rest } = current;
       return rest;
     });
     await loadFilterValues(id, patch.column);

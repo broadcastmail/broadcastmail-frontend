@@ -103,6 +103,7 @@ export function useCampaignAutosave(
     } finally {
       setSaving(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- uow.commit closes over a stable ref; adding uow would recreate saveNow every render
   }, [campaignId, buildPayload, cancel]);
 
   const autoSave = useCallback(async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import {useRef, useState} from "react";
+import {useLayoutEffect, useRef, useState} from "react";
 import {useAudienceFilterEditor} from "./use-audience-filter-editor";
 import {useAudienceTable} from "./use-audience-table";
 import {updateCampaign} from "@/features/campaigns/api/campaigns";
@@ -50,7 +50,7 @@ export function useAudienceStepMediator(data: CampaignData, onConfirm: (count: n
     initialExcludedIds,
   });
 
-  listReloadRef.current = list.reload;
+  useLayoutEffect(() => { listReloadRef.current = list.reload; });
 
   async function handleSave() {
     selection.commitFilters();

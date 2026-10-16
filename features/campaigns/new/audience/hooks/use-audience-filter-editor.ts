@@ -1,7 +1,7 @@
 "use client";
 
 import type {RefObject} from "react";
-import {useRef, useState} from "react";
+import {useLayoutEffect, useRef, useState} from "react";
 import {toast} from "sonner";
 import {listAudience} from "@/features/campaigns/api/audience";
 import {useDebounceController} from "@/lib/hooks/use-debounced-callback";
@@ -101,7 +101,6 @@ export interface AudienceFilterEditor {
 }
 
 export function useAudienceFilterEditor({
-  campaignId,
   audienceColumns,
   initialFilters,
   initialRecipientCount,
@@ -111,11 +110,12 @@ export function useAudienceFilterEditor({
   const [filterError, setFilterError] = useState<string | null>(null);
 
   const filtersRef = useRef(filters);
-  filtersRef.current = filters;
   const columnsRef = useRef(audienceColumns);
-  columnsRef.current = audienceColumns;
   const onAppliedRef = useRef(onFiltersApplied);
-  onAppliedRef.current = onFiltersApplied;
+
+  useLayoutEffect(() => { filtersRef.current = filters; });
+  useLayoutEffect(() => { columnsRef.current = audienceColumns; });
+  useLayoutEffect(() => { onAppliedRef.current = onFiltersApplied; });
 
   const { counting, recipientCount, trigger: recount } = useRecipientCount(
     initialRecipientCount, filtersRef, columnsRef, onAppliedRef,
