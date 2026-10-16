@@ -1,26 +1,31 @@
 "use client";
 
 import {useCallback, useEffect, useRef, useState} from "react";
+import {toast} from "sonner";
 import {type CreateCampaignPayload, updateCampaign,} from "@/features/campaigns/api/campaigns";
 import {updateSessionDraft} from "@/features/campaigns/shared/session-drafts";
 import {sanitizeHtmlSource} from "@/features/campaigns/new/compose/lib/sanitize-html-source";
 import {useDebounceController} from "@/lib/hooks/use-debounced-callback";
+import type {CampaignDraft} from "./use-campaign-draft";
 
-interface UseCampaignAutosaveOptions {
-  campaignId: string;
-  enabled: boolean;
-  name: string;
-  subject: string;
-  source: "visual" | "import";
-  visualBodyHtml: string;
-  importedHtml: string;
-  delayMs?: number;
-}
+function useUnitOfWork<T extends object>() {
+  const committedRef = useRef<T | null>(null);
 
-interface UseCampaignAutosaveResult {
-  saving: boolean;
-  dirty: boolean;
-  saveNow: () => Promise<void>;
+  function begin(snapshot: T) {
+    if (committedRef.current === null) committedRef.current = snapshot;
+  }
+
+  function isDirty(current: T): boolean {
+    const committed = committedRef.current;
+    if (!committed) return false;
+    return (Object.keys(current) as Array<keyof T>).some((k) => current[k] !== committed[k]);
+  }
+
+  function commit(snapshot: T) {
+    committedRef.current = Object.assign({}, snapshot);
+  }
+
+  return { begin, isDirty, commit };
 }
 
 interface CampaignSnapshot {
@@ -31,46 +36,48 @@ interface CampaignSnapshot {
   importedHtml: string;
 }
 
-/** Debounced autosave for the campaign composer, plus an imperative escape
- *  hatch for "save right now." The debounce (react to edits settling for a
- *  beat, PATCH in the background) is the one effect in here that's actually
- *  earning its keep — there's no non-effect way to know "N ms have passed
- *  since the last edit," which is exactly the kind of external-clock
- *  synchronization useEffect exists for. Everything else here — the manual
- *  save, and payload building it shares with handleSend — is a plain
- *  function called directly, not something routed through an effect. */
-export function useCampaignAutosave({
-  campaignId,
-  enabled,
-  name,
-  subject,
-  source,
-  visualBodyHtml,
-  importedHtml,
-  delayMs = 1000,
-}: UseCampaignAutosaveOptions): UseCampaignAutosaveResult {
+interface UseCampaignAutosaveOptions {
+  campaignId: string;
+  enabled: boolean;
+  delayMs?: number;
+}
+
+interface UseCampaignAutosaveResult {
+  saving: boolean;
+  saved: boolean;
+  dirty: boolean;
+  saveNow: () => Promise<void>;
+  draft: CampaignDraft;
+}
+
+export function useCampaignAutosave(
+  draft: CampaignDraft,
+  { campaignId, enabled, delayMs = 1000 }: UseCampaignAutosaveOptions,
+): UseCampaignAutosaveResult {
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Kept fresh every render so saveNow() always sends what's on screen
-  // right now, not whatever it was when saveNow was created.
-  const latestRef = useRef({ name, subject, source, visualBodyHtml, importedHtml });
-  latestRef.current = { name, subject, source, visualBodyHtml, importedHtml };
-
-  // Baseline "dirty" compares against — the fields as of the last
-  // successful save.
-  const committedRef = useRef<CampaignSnapshot | null>(null);
-  if (enabled && committedRef.current === null) {
-    committedRef.current = { name, subject, source, visualBodyHtml, importedHtml };
+  function flashSaved() {
+    setSaved(true);
+    if (savedTimerRef.current) clearTimeout(savedTimerRef.current);
+    savedTimerRef.current = setTimeout(() => setSaved(false), 1500);
   }
-  const committed = committedRef.current;
-  const dirty =
-    enabled &&
-    committed !== null &&
-    (name !== committed.name ||
-      subject !== committed.subject ||
-      source !== committed.source ||
-      visualBodyHtml !== committed.visualBodyHtml ||
-      importedHtml !== committed.importedHtml);
+
+  const snapshot: CampaignSnapshot = {
+    name: draft.name,
+    subject: draft.subject,
+    source: draft.source,
+    visualBodyHtml: draft.visualBody.html,
+    importedHtml: draft.importedHtml,
+  };
+
+  const latestRef = useRef(snapshot);
+  latestRef.current = snapshot;
+
+  const uow = useUnitOfWork<CampaignSnapshot>();
+  if (enabled) uow.begin(snapshot);
+  const dirty = enabled && uow.isDirty(snapshot);
 
   const buildPayload = useCallback((): CreateCampaignPayload => {
     const l = latestRef.current;
@@ -78,54 +85,58 @@ export function useCampaignAutosave({
     return { name: l.name, subject: l.subject, bodyHtml };
   }, []);
 
-  const { schedule: scheduleSave, cancel: cancelScheduledSave } = useDebounceController();
+  const { schedule, cancel } = useDebounceController();
+  const autosaveErrorShownRef = useRef(false);
 
   const saveNow = useCallback(async () => {
-    cancelScheduledSave();
+    cancel();
     setSaving(true);
     try {
       await updateCampaign(campaignId, buildPayload());
-      // Keeps the dashboard's session-local copy (see session-drafts.ts)
-      // showing the current name/subject instead of "Untitled campaign" if
-      // the user leaves before this draft is ever sent.
       updateSessionDraft(campaignId, {
         name: latestRef.current.name,
         subject: latestRef.current.subject,
       });
-      committedRef.current = { ...latestRef.current };
+      uow.commit({ ...latestRef.current });
+      autosaveErrorShownRef.current = false;
+      flashSaved();
     } finally {
       setSaving(false);
     }
-  }, [campaignId, buildPayload, cancelScheduledSave]);
+  }, [campaignId, buildPayload, cancel]);
 
-  const skipFirstRef = useRef(true);
-
-  useEffect(() => {
-    if (!enabled) return;
-    if (skipFirstRef.current) {
-      skipFirstRef.current = false;
-      return;
+  const autoSave = useCallback(async () => {
+    try {
+      await saveNow();
+    } catch {
+      if (!autosaveErrorShownRef.current) {
+        autosaveErrorShownRef.current = true;
+        toast.error("Autosave failed — changes may not be saved.");
+      }
     }
-    scheduleSave(() => {
-      // Best-effort: no retry UI for a background autosave failure yet —
-      // the manual Save button (which does surface its own error) is the
-      // fallback.
-      saveNow().catch((err) => console.error(`Autosave failed for campaign ${campaignId}`, err));
-    }, delayMs);
-    return cancelScheduledSave;
-  }, [
-    enabled,
-    campaignId,
-    delayMs,
-    name,
-    subject,
-    source,
-    visualBodyHtml,
-    importedHtml,
-    scheduleSave,
-    cancelScheduledSave,
-    saveNow,
-  ]);
+  }, [saveNow]);
 
-  return { saving, dirty, saveNow };
+  useEffect(() => () => cancel(), [cancel]);
+
+  function wrap<T>(setter: (v: T) => void): (v: T) => void {
+    return (v) => {
+      setter(v);
+      if (enabled) schedule(() => void autoSave(), delayMs);
+    };
+  }
+
+  return {
+    saving,
+    saved,
+    dirty,
+    saveNow,
+    draft: {
+      ...draft,
+      setName: wrap(draft.setName),
+      setSubject: wrap(draft.setSubject),
+      setSource: wrap(draft.setSource),
+      setVisualBody: wrap(draft.setVisualBody),
+      setImportedHtml: wrap(draft.setImportedHtml),
+    },
+  };
 }

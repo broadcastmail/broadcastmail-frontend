@@ -2,6 +2,7 @@
 
 import {useState} from "react";
 import {useRouter} from "next/navigation";
+import {toast} from "sonner";
 import {createCampaign} from "@/features/campaigns/api/campaigns";
 import {addSessionDraft} from "@/features/campaigns/shared/session-drafts";
 import {Tooltip, TooltipContent, TooltipTrigger,} from "@/components/ui/tooltip";
@@ -27,6 +28,7 @@ export function NewCampaignButton({ configured }: Readonly<NewCampaignButtonProp
       addSessionDraft(campaign);
       router.push(`/dashboard/campaigns/${campaign.id}`);
     } catch {
+      toast.error("Couldn't create campaign — try again.");
       setCreating(false);
     }
   }

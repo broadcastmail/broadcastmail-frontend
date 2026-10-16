@@ -1,7 +1,9 @@
 "use client";
 
+import type {RefObject} from "react";
 import {useRef, useState} from "react";
-import {previewRecipients, updateCampaign} from "@/features/campaigns/api/campaigns";
+import {toast} from "sonner";
+import {listAudience} from "@/features/campaigns/api/audience";
 import {useDebounceController} from "@/lib/hooks/use-debounced-callback";
 import {
     AUDIENCE_OPS,
@@ -19,11 +21,69 @@ import {
 let filterIdSeq = 0;
 const nextFilterId = () => `filter-${++filterIdSeq}`;
 
+function findNextFilterCandidate(
+  columns: AudienceColumn[],
+  existingKeys: Set<string>,
+): Pick<AudienceFilter, "column" | "op" | "value"> | null {
+  return columns
+    .map((column) => ({
+      column: columnKey(column.source, column.name),
+      op: AUDIENCE_OPS[column.type][0][0],
+      value: column.type === "boolean" ? "true" : "",
+    } satisfies Pick<AudienceFilter, "column" | "op" | "value">))
+    .find((filter) => !existingKeys.has(audienceFilterKey(filter))) ?? null;
+}
+
+function toActiveFilterColumns(
+  filters: AudienceFilter[],
+  columns: AudienceColumn[],
+): FilterColumn[] {
+  return Array.from(
+    new Map(
+      filters.map((f) => [f.column, { key: f.column, name: columnFor(columns, f.column).name }]),
+    ).values(),
+  ).filter((col) => col.name !== "created_at");
+}
+
+function useRecipientCount(
+  initialCount: number,
+  filtersRef: RefObject<AudienceFilter[]>,
+  columnsRef: RefObject<AudienceColumn[]>,
+  onAppliedRef: RefObject<(() => void) | undefined>,
+) {
+  const [counting, setCounting] = useState(false);
+  const [recipientCount, setRecipientCount] = useState(initialCount);
+  const requestRef = useRef(0);
+  const { schedule } = useDebounceController();
+
+  async function run(requestId: number) {
+    if (filtersRef.current.some((f) => !f.value.trim())) { setCounting(false); return; }
+    try {
+      const page = await listAudience({ filters: toFilterPayloads(filtersRef.current, columnsRef.current), limit: 1 });
+      if (requestId !== requestRef.current) return;
+      setRecipientCount(page.total);
+      onAppliedRef.current?.();
+    } catch {
+      toast.error("Couldn't update recipient count — try again.");
+    } finally {
+      if (requestId === requestRef.current) setCounting(false);
+    }
+  }
+
+  function trigger() {
+    setCounting(true);
+    schedule(() => run(++requestRef.current), 500);
+  }
+
+  return { counting, recipientCount, trigger };
+}
+
 interface UseAudienceFilterEditorOptions {
   campaignId: string;
   audienceColumns: AudienceColumn[];
   initialFilters: CampaignFilterResponse[];
   initialRecipientCount: number;
+  onFiltersApplied?: () => void;
 }
 
 export interface FilterColumn { key: string; name: string }
@@ -45,83 +105,39 @@ export function useAudienceFilterEditor({
   audienceColumns,
   initialFilters,
   initialRecipientCount,
+  onFiltersApplied,
 }: UseAudienceFilterEditorOptions): AudienceFilterEditor {
-  const [filters, setFilters] = useState(() =>
-    fromFilterResponses(initialFilters, nextFilterId),
-  );
-  const [counting, setCounting] = useState(false);
-  const [recipientCount, setRecipientCount] = useState(initialRecipientCount);
+  const [filters, setFilters] = useState(() => fromFilterResponses(initialFilters, nextFilterId));
   const [filterError, setFilterError] = useState<string | null>(null);
 
-  const countRequestRef = useRef(0);
   const filtersRef = useRef(filters);
   filtersRef.current = filters;
+  const columnsRef = useRef(audienceColumns);
+  columnsRef.current = audienceColumns;
+  const onAppliedRef = useRef(onFiltersApplied);
+  onAppliedRef.current = onFiltersApplied;
 
-  const audienceColumnsRef = useRef(audienceColumns);
-  audienceColumnsRef.current = audienceColumns;
-
-  const { schedule: scheduleRecount } = useDebounceController();
-
-  function recount() {
-    setCounting(true);
-    scheduleRecount(() => runRecount(++countRequestRef.current), 500);
-  }
-
-  async function runRecount(requestId: number) {
-    if (filtersRef.current.some((f) => !f.value.trim())) {
-      setCounting(false);
-      return;
-    }
-    try {
-      await updateCampaign(campaignId, {
-        filters: toFilterPayloads(filtersRef.current, audienceColumnsRef.current),
-      });
-      const count = await previewRecipients(campaignId);
-      if (requestId === countRequestRef.current) setRecipientCount(count);
-    } catch (err) {
-      console.error(`Recipient recount failed for campaign ${campaignId}`, err);
-    } finally {
-      if (requestId === countRequestRef.current) setCounting(false);
-    }
-  }
+  const { counting, recipientCount, trigger: recount } = useRecipientCount(
+    initialRecipientCount, filtersRef, columnsRef, onAppliedRef,
+  );
 
   function addFilter(): AudienceFilter | null {
     setFilterError(null);
     if (!audienceColumns.length) return null;
     const existingKeys = new Set(filtersRef.current.map(audienceFilterKey));
-    const candidate = audienceColumns
-      .map((column) => {
-        const filter = {
-          column: columnKey(column.source, column.name),
-          op: AUDIENCE_OPS[column.type][0][0],
-          value: column.type === "boolean" ? "true" : "",
-        } satisfies Pick<AudienceFilter, "column" | "op" | "value">;
-        return filter;
-      })
-      .find((filter) => !existingKeys.has(audienceFilterKey(filter)));
-
-    if (!candidate) {
-      setFilterError("That filter already exists.");
-      return null;
-    }
-
+    const candidate = findNextFilterCandidate(audienceColumns, existingKeys);
+    if (!candidate) { setFilterError("That filter already exists."); return null; }
     const filter = { id: nextFilterId(), ...candidate };
     setFilters((prev) => [...prev, filter]);
-    setFilterError(null);
     recount();
     return filter;
   }
 
   function patchFilter(id: string, patch: Partial<AudienceFilter>) {
     setFilters((prev) => {
-      const next = prev.map((filter) =>
-        filter.id === id ? { ...filter, ...patch } : filter,
-      );
+      const next = prev.map((f) => f.id === id ? { ...f, ...patch } : f);
       const keys = next.map(audienceFilterKey);
-      if (new Set(keys).size !== keys.length) {
-        setFilterError("That filter already exists.");
-        return prev;
-      }
+      if (new Set(keys).size !== keys.length) { setFilterError("That filter already exists."); return prev; }
       setFilterError(null);
       return next;
     });
@@ -136,18 +152,10 @@ export function useAudienceFilterEditor({
 
   const activeFilters = filters.filter((f) => f.value.trim());
 
-  const filterPayloads = toFilterPayloads(activeFilters, audienceColumns);
-
-  const activeFilterColumns = Array.from(
-    new Map(
-      activeFilters.map((f) => [f.column, { key: f.column, name: columnFor(audienceColumns, f.column).name }]),
-    ).values(),
-  ).filter((col) => col.name !== "created_at");
-
   return {
     filters,
-    filterPayloads,
-    activeFilterColumns,
+    filterPayloads: toFilterPayloads(activeFilters, audienceColumns),
+    activeFilterColumns: toActiveFilterColumns(activeFilters, audienceColumns),
     counting,
     recipientCount,
     filterError,

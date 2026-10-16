@@ -2,6 +2,7 @@ import type {AudienceDefinition} from "./campaign-store";
 import {audienceStore, filtersStore, store} from "./campaign-store";
 import type {Campaign} from "@/lib/types/campaigns";
 import type {AudienceFilterPayload} from "@/features/campaigns/new/audience/audience";
+import {resumeSimulations} from "./handlers/campaigns";
 
 type SyncEntry = {
   campaign: Campaign;
@@ -19,6 +20,7 @@ export async function hydrateFromServer(): Promise<void> {
       if (filters !== undefined) filtersStore.set(campaign.id, filters);
       if (audience !== undefined) audienceStore.set(campaign.id, audience);
     }
+    resumeSimulations();
   } catch {
     // non-critical
   }

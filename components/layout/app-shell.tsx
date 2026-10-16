@@ -3,6 +3,7 @@ import {TopNav} from "@/components/layout/top-nav";
 import {getMe} from "@/lib/api/get-me";
 import {UnsavedChangesProvider} from "@/lib/navigation/unsaved-changes-guard";
 import {PlanProvider} from "@/lib/subscription/plan-context";
+import {ActiveSendObserver} from "@/features/campaigns/shared/active-send-observer";
 
 export async function AppShell({ children }: Readonly<{ children: React.ReactNode }>) {
   const me = await getMe();
@@ -17,6 +18,7 @@ export async function AppShell({ children }: Readonly<{ children: React.ReactNod
         <div className="flex flex-col h-screen overflow-hidden">
           <TopNav email={me.email} connectionName={me.connectionName} />
           <main className="flex-1 min-h-0 overflow-y-auto">{children}</main>
+          <ActiveSendObserver />
         </div>
       </UnsavedChangesProvider>
     </PlanProvider>

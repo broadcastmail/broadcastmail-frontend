@@ -10,15 +10,16 @@
 
 import Image from "@tiptap/extension-image";
 import Link from "@tiptap/extension-link";
+import Underline from "@tiptap/extension-underline";
 import StarterKit from "@tiptap/starter-kit";
-import {generateHTML, type JSONContent, mergeAttributes, Node} from "@tiptap/core";
+import {type JSONContent, mergeAttributes, Node} from "@tiptap/core";
 import {sanitizeUrl} from "@/features/campaigns/new/compose/lib/email-html";
 
 // Same http(s)-only allowlist the rest of the composer already uses
 // (dialogs, snippets) — applied here too so a pasted `javascript:`/`data:`
 // href never becomes a real link/image src no matter which path it
 // arrives through.
-export const EmailLink = Link.extend({
+const EmailLink = Link.extend({
   addAttributes() {
     return {
       ...this.parent?.(),
@@ -42,7 +43,7 @@ export const EmailLink = Link.extend({
 // other attribute a pasted <img> carries (onerror, onload, style, …)
 // simply never makes it into the node's attrs, so it can't be rendered
 // back out either. Mirrors the fixed sizing imageSnippetHtml used to hard-code.
-export const EmailImage = Image.extend({
+const EmailImage = Image.extend({
   addAttributes() {
     return {
       src: { default: null },
@@ -80,7 +81,7 @@ export const EmailImage = Image.extend({
 // exact shape buttonSnippetHtml() produces (or an equivalent pasted one)
 // and reduces it back to those two attrs — nothing from the matched
 // element's markup survives except the label text and a re-validated href.
-export const CtaButton = Node.create({
+const CtaButton = Node.create({
   name: "ctaButton",
   group: "inline",
   inline: true,
@@ -156,6 +157,7 @@ export const EMAIL_EDITOR_EXTENSIONS = [
   EmailLink,
   EmailImage,
   CtaButton,
+  Underline,
 ];
 
 // The doc a brand-new visual-mode draft starts from — same shape the
@@ -164,16 +166,3 @@ export const EMAIL_EDITOR_EXTENSIONS = [
 // one definition.
 export const EMPTY_DOC: JSONContent = { type: "doc", content: [] };
 
-// Headless JSON → HTML, run outside a mounted editor — used only to seed a
-// resumed draft's initial HTML (for the preview/warnings that need a string
-// before the editor mounts). Never used for the HTML *import* path: that's
-// someone else's markup being parsed against this schema and would be lossy
-// by design (see html-import-editor.tsx); this is the opposite direction —
-// HTML the schema itself already produced, round-tripped losslessly.
-export function jsonToHtml(json: JSONContent): string {
-  try {
-    return generateHTML(json, EMAIL_EDITOR_EXTENSIONS);
-  } catch {
-    return "";
-  }
-}

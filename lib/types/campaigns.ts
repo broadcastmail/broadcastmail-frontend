@@ -62,6 +62,7 @@ export interface CampaignRecipient {
 
 export interface CampaignStatusEvent {
   id: string;
+  name: string;
   status: CampaignStatus;
   recipientsCount: number | null;
   sentCount: number;

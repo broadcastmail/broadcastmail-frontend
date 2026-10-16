@@ -2,7 +2,7 @@
 
 import {SectionCard} from "@/components/layout/section-card";
 import {MetricCard} from "@/components/dashboard/metric-card";
-import {startCheckout} from "@/features/billing/api/billing";
+import {startCheckout} from "@/features/billing/api/billing-client";
 import {isProPlan} from "@/lib/subscription/plans";
 import {usePlan} from "@/lib/subscription/plan-context";
 import {useCheckoutRedirect} from "@/lib/subscription/use-checkout-redirect";

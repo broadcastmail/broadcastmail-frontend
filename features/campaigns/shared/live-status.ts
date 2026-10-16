@@ -1,18 +1,30 @@
 import type {CampaignStatusEvent} from "@/lib/types/campaigns";
 
-let liveStatus = new Map<string, CampaignStatusEvent>();
+export interface LiveEntry {
+  event: CampaignStatusEvent;
+  name: string;
+}
+
+let liveStatus = new Map<string, LiveEntry>();
 const listeners = new Set<() => void>();
 
 function notify() {
   listeners.forEach((listener) => listener());
 }
 
-export function setLiveStatus(event: CampaignStatusEvent) {
-  liveStatus = new Map(liveStatus).set(event.id, event);
+export function setLiveStatus(event: CampaignStatusEvent, name: string) {
+  liveStatus = new Map(liveStatus).set(event.id, { event, name });
   notify();
 }
 
-export function getLiveStatus(): Map<string, CampaignStatusEvent> {
+export function clearLiveStatus(id: string) {
+  if (!liveStatus.has(id)) return;
+  liveStatus = new Map(liveStatus);
+  liveStatus.delete(id);
+  notify();
+}
+
+export function getLiveStatus(): Map<string, LiveEntry> {
   return liveStatus;
 }
 
