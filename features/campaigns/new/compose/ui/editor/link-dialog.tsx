@@ -4,6 +4,7 @@ import {useForm} from "react-hook-form";
 import {zodResolver} from "@hookform/resolvers/zod";
 import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,} from "@/components/ui/dialog";
 import {linkFieldsSchema, type LinkFieldsValues} from "@/lib/schemas/campaigns";
+import {DialogField} from "./dialog-field";
 
 interface LinkDialogProps {
   open: boolean;
@@ -54,36 +55,23 @@ export function LinkDialog({
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit(submit)} className="flex flex-col gap-3" noValidate>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="link-dialog-label" className="text-xs font-medium text-[#8E8E9A]">
-              {isButton ? "Button text" : "Text"}
-            </label>
-            <input
-              id="link-dialog-label"
-              {...register("label")}
-              placeholder={isButton ? "Click here" : "Link text"}
-              aria-invalid={!!errors.label}
-              className="box-border bg-[#101015] border border-[#26262F] focus:border-orange rounded-lg px-3 py-2.5 text-[13px] text-[#ECECF1] placeholder:text-[#4C4C58] outline-none aria-invalid:border-[#E5726A]"
-            />
-            {errors.label && (
-              <p className="text-xs text-[#E5726A]">{errors.label.message}</p>
-            )}
-          </div>
-          <div className="flex flex-col gap-1.5">
-            <label htmlFor="link-dialog-href" className="text-xs font-medium text-[#8E8E9A]">
-              URL
-            </label>
-            <input
-              id="link-dialog-href"
-              {...register("href")}
-              placeholder="https://example.com"
-              aria-invalid={!!errors.href}
-              className="box-border bg-[#101015] border border-[#26262F] focus:border-orange rounded-lg px-3 py-2.5 font-mono text-[13px] text-[#ECECF1] placeholder:text-[#4C4C58] outline-none aria-invalid:border-[#E5726A]"
-            />
-            {errors.href && (
-              <p className="text-xs text-[#E5726A]">{errors.href.message}</p>
-            )}
-          </div>
+          <DialogField
+            id="link-dialog-label"
+            label={isButton ? "Button text" : "Text"}
+            {...register("label")}
+            aria-invalid={!!errors.label}
+            placeholder={isButton ? "Click here" : "Link text"}
+            error={errors.label?.message}
+          />
+          <DialogField
+            id="link-dialog-href"
+            label="URL"
+            mono
+            {...register("href")}
+            aria-invalid={!!errors.href}
+            placeholder="https://example.com"
+            error={errors.href?.message}
+          />
           <DialogFooter>
             <button
               type="button"

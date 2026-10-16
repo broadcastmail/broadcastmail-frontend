@@ -6,7 +6,6 @@ import type {AudienceColumn, CampaignFilterResponse} from "@/features/campaigns/
 import type {AudienceListResponse} from "@/features/campaigns/api/audience";
 import {AudienceStep} from "./audience/ui/audience-step";
 import {ComposeStep} from "./compose/ui/compose-step";
-import {SendingOverlay} from "./compose/ui/sending-overlay";
 import {useSendStream} from "@/features/campaigns/new/compose/hooks/use-send-stream";
 import {isFreePlan} from "@/lib/subscription/plans";
 import {usePlan} from "@/lib/subscription/plan-context";
@@ -27,6 +26,13 @@ interface NewCampaignFormProps {
   resendConfigured: boolean;
 }
 
+function resolveInitialRecipientCount(campaign: Campaign, initialRecipientCount: number): number | null {
+  if (campaign.audienceMode === null) return null;
+  if (campaign.audienceMode === "manual") return campaign.includedIds?.length ?? 0;
+  if (campaign.audienceMode === "all") return Math.max(0, initialRecipientCount - (campaign.excludedIds?.length ?? 0));
+  return initialRecipientCount;
+}
+
 export function NewCampaignForm({ data, resendConfigured }: Readonly<NewCampaignFormProps>) {
   const { campaign, initialFilters, initialRecipientCount } = data;
   const plan = usePlan();
@@ -34,14 +40,9 @@ export function NewCampaignForm({ data, resendConfigured }: Readonly<NewCampaign
   const [step, setStep] = useState<"audience" | "compose">(
     campaign.audienceMode !== null ? "compose" : "audience",
   );
-  // null = audience not yet confirmed; number = confirmed (count may be 0)
-  const [selectedRecipientCount, setSelectedRecipientCount] = useState<number | null>(() => {
-    if (campaign.audienceMode === null) return null;
-    if (campaign.audienceMode === "manual") return campaign.includedIds?.length ?? 0;
-    if (campaign.audienceMode === "all")
-      return Math.max(0, initialRecipientCount - (campaign.excludedIds?.length ?? 0));
-    return initialRecipientCount;
-  });
+  const [selectedRecipientCount, setSelectedRecipientCount] = useState<number | null>(
+    () => resolveInitialRecipientCount(campaign, initialRecipientCount),
+  );
 
   const composeDirtyRef = useRef(false);
 
@@ -54,17 +55,19 @@ export function NewCampaignForm({ data, resendConfigured }: Readonly<NewCampaign
   const upgradeRequired = isFreePlan(plan) && initialFilters.length > 0;
   const canSend = audienceConfirmed && resendConfigured && !upgradeRequired;
 
+  function handleStepChange(next: "audience" | "compose") {
+    if (step === "compose" && next === "audience" && composeDirtyRef.current) {
+      if (!window.confirm(UNSAVED_CHANGES_MESSAGE)) return;
+    }
+    setStep(next);
+  }
+
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <CampaignStepStrip
         step={step}
         audienceConfirmed={audienceConfirmed}
-        onStepChange={(next) => {
-          if (step === "compose" && next === "audience" && composeDirtyRef.current) {
-            if (!window.confirm(UNSAVED_CHANGES_MESSAGE)) return;
-          }
-          setStep(next);
-        }}
+        onStepChange={handleStepChange}
       />
 
       {/* Both steps stay mounted so their internal state survives step switches. */}
@@ -83,14 +86,13 @@ export function NewCampaignForm({ data, resendConfigured }: Readonly<NewCampaign
         <ComposeStep
           campaign={campaign}
           resendConfigured={resendConfigured}
-          state={{ recipientCount: selectedRecipientCount ?? 0, canSend, sending: sendStream.stage !== null }}
+          state={{ recipientCount: selectedRecipientCount ?? 0, canSend, sending: sendStream.sending }}
           onBack={() => setStep("audience")}
           onSend={sendStream.send}
           onDirtyChange={(dirty) => { composeDirtyRef.current = dirty; }}
         />
       </div>
 
-      <SendingOverlay stage={sendStream.stage} finalCount={sendStream.finalCount} />
     </div>
   );
 }

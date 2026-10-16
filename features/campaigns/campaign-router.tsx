@@ -12,7 +12,7 @@ export async function CampaignRouter({ campaignId }: Readonly<CampaignRouterProp
 
   if (campaign.status !== "DRAFT") {
     const emailProvider = await getAccountEmailProvider();
-    return <CampaignDetail campaignId={campaignId} resendConfigured={!!emailProvider?.fromAddress} />;
+    return <CampaignDetail initialCampaign={campaign} resendConfigured={!!emailProvider?.fromAddress} />;
   }
 
   const composerData = await getComposerData(campaign);

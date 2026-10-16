@@ -13,7 +13,7 @@ import {EditorFooter} from "./editor-footer";
 import {EmailWarnings} from "./email-warnings";
 import {TipsPanel} from "./tips-panel";
 import {LinkDialog} from "./link-dialog";
-import {ImageDialog, type ImageDialogValue} from "./image-dialog";
+import {EditImageDialog, type ImageDialogValue, InsertImageDialog} from "./image-dialog";
 import {
     buttonSnippetHtml,
     EDITOR_SNIPPETS,
@@ -46,12 +46,9 @@ interface LinkDialogState {
   nonce: number;
 }
 
-interface ImageDialogState {
-  open: boolean;
-  mode: "insert" | "edit";
-  initialValue?: ImageDialogValue;
-  nonce: number;
-}
+type ImageDialogState =
+  | { mode: "insert"; open: boolean; nonce: number }
+  | { mode: "edit"; open: boolean; nonce: number; initialValue: ImageDialogValue };
 
 // Orchestrates the WYSIWYG surface: the snippet toolbar, the right-click
 // quick-actions menu, and the link/image dialogs all funnel through the
@@ -73,8 +70,8 @@ export function EmailEditor({ initialHtml, onChange }: Readonly<EmailEditorProps
     nonce: 0,
   });
   const [imageDialog, setImageDialog] = useState<ImageDialogState>({
-    open: false,
     mode: "insert",
+    open: false,
     nonce: 0,
   });
   // The DOM element a dialog is editing, if any — only ever used as a key
@@ -149,17 +146,17 @@ export function EmailEditor({ initialHtml, onChange }: Readonly<EmailEditorProps
 
   function openInsertImage() {
     editingImgRef.current = null;
-    setImageDialog((s) => ({ open: true, mode: "insert", nonce: s.nonce + 1 }));
+    setImageDialog((s) => ({ mode: "insert", open: true, nonce: s.nonce + 1 }));
   }
 
   function openEditImage(img: HTMLImageElement) {
     const anchor = img.closest("a");
     editingImgRef.current = img;
     setImageDialog((s) => ({
-      open: true,
       mode: "edit",
-      initialValue: { src: img.src, alt: img.alt, href: anchor?.href ?? "" },
+      open: true,
       nonce: s.nonce + 1,
+      initialValue: { src: img.src, alt: img.alt, href: anchor?.href ?? "" },
     }));
   }
 
@@ -329,15 +326,23 @@ export function EmailEditor({ initialHtml, onChange }: Readonly<EmailEditorProps
         onOpenChange={(open) => setLinkDialog((s) => ({ ...s, open }))}
         onSubmit={handleLinkSubmit}
       />
-      <ImageDialog
-        key={`image-${imageDialog.nonce}`}
-        open={imageDialog.open}
-        mode={imageDialog.mode}
-        initialValue={imageDialog.initialValue}
-        onOpenChange={(open) => setImageDialog((s) => ({ ...s, open }))}
-        onSubmit={handleImageSubmit}
-        onRemove={imageDialog.mode === "edit" ? handleImageRemove : undefined}
-      />
+      {imageDialog.mode === "insert" ? (
+        <InsertImageDialog
+          key={`image-${imageDialog.nonce}`}
+          open={imageDialog.open}
+          onOpenChange={(open) => setImageDialog((s) => ({ ...s, open }))}
+          onSubmit={handleImageSubmit}
+        />
+      ) : (
+        <EditImageDialog
+          key={`image-${imageDialog.nonce}`}
+          open={imageDialog.open}
+          onOpenChange={(open) => setImageDialog((s) => ({ ...s, open }))}
+          onSubmit={handleImageSubmit}
+          initialValue={imageDialog.initialValue}
+          onRemove={handleImageRemove}
+        />
+      )}
     </div>
   );
 }

@@ -1,17 +1,13 @@
 "use client";
 
-import { usePathname } from "next/navigation";
-import { Mail, Settings, CreditCard, ChevronDown, LogOut } from "lucide-react";
-import { NavItem } from "./nav-item";
-import { useRouter } from "next/navigation";
-import { logout } from "@/lib/api/auth";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
-import { useState } from "react";
+import {usePathname, useRouter} from "next/navigation";
+import {ChevronDown, CreditCard, LogOut, Mail, Settings} from "lucide-react";
+import {NavItem} from "./nav-item";
+import {logout} from "@/lib/api/auth";
+import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,} from "../ui/dropdown-menu";
+import {useState} from "react";
+import {usePlan} from "@/lib/subscription/plan-context";
+import {PLAN_LABEL} from "@/lib/subscription/plans";
 
 const NAV_ITEMS = [
   { href: "/dashboard", label: "Campaigns", icon: <Mail size={14} /> },
@@ -82,6 +78,7 @@ export function TopNav({ email, connectionName }: TopNavProps) {
 
 function UserMenu({ email }: { email: string }) {
   const router = useRouter();
+  const plan = usePlan();
   const [open, setOpen] = useState(false);
   const initial = email.charAt(0).toUpperCase();
 
@@ -103,6 +100,9 @@ function UserMenu({ email }: { email: string }) {
             {initial}
           </div>
           <span className="text-[12.5px] text-[#B9B9C2]">{email}</span>
+          <span className="text-[10px] font-semibold uppercase tracking-[0.06em] text-[#7A7A85] leading-none self-center">
+            {PLAN_LABEL[plan]}
+          </span>
           <ChevronDown size={9} color="#7A7A85" aria-hidden="true" />
         </button>
       </DropdownMenuTrigger>

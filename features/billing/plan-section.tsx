@@ -5,15 +5,28 @@ import {SectionCard} from "@/components/layout/section-card";
 import {FieldRow} from "@/components/layout/field-row";
 import {Spinner} from "@/components/onboarding/spinner";
 import {isProPlan, PLAN_FEATURES, PLAN_LABEL, PLAN_PRICE} from "@/lib/subscription/plans";
-import {startBillingPortal, startCheckout} from "@/features/billing/api/billing";
+import {startBillingPortal, startCheckout} from "@/features/billing/api/billing-client";
 import {usePlan} from "@/lib/subscription/plan-context";
 import {useCheckoutRedirect} from "@/lib/subscription/use-checkout-redirect";
 
-export function PlanSection() {
+interface PlanSectionProps {
+  currentPeriodEnd: string | null;
+  cancelAtPeriodEnd: boolean;
+}
+
+export function PlanSection({ currentPeriodEnd, cancelAtPeriodEnd }: Readonly<PlanSectionProps>) {
   const plan = usePlan();
   const isPro = isProPlan(plan);
   const price = PLAN_PRICE[plan];
   const { redirecting, redirect } = useCheckoutRedirect();
+
+  const periodEndDate = currentPeriodEnd
+    ? new Date(currentPeriodEnd).toLocaleDateString("en-US", {
+        month: "long",
+        day: "numeric",
+        year: "numeric",
+      })
+    : null;
 
   function handleClick() {
     redirect(
@@ -39,6 +52,14 @@ export function PlanSection() {
           )}
         </div>
       </FieldRow>
+
+      {isPro && periodEndDate && (
+        <FieldRow label={cancelAtPeriodEnd ? "Cancels on" : "Next billing"}>
+          <span className={`text-[13.5px] ${cancelAtPeriodEnd ? "text-orange" : "text-text-primary"}`}>
+            {periodEndDate}
+          </span>
+        </FieldRow>
+      )}
 
       <div className="flex flex-col gap-2.25 pl-41.5">
         {PLAN_FEATURES[plan].map((feature) => (

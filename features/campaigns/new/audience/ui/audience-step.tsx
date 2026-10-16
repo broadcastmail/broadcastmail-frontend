@@ -1,15 +1,10 @@
 "use client";
 
-import {useState} from "react";
-import {useAudienceFilterEditor} from "@/features/campaigns/new/audience/hooks/use-audience-filter-editor";
-import {useAudienceTable} from "@/features/campaigns/new/audience/hooks/use-audience-table";
-import {updateCampaign} from "@/features/campaigns/api/campaigns";
-import type {AudienceMode} from "@/lib/types/campaigns";
 import type {CampaignData} from "@/features/campaigns/new/new-campaign-form";
+import {useAudienceStepMediator} from "@/features/campaigns/new/audience/hooks/use-audience-step-mediator";
 import {AudienceFilters} from "./audience-filters";
 import {AudienceRecipientTable} from "./audience-recipient-table";
 import {AudienceStepFooter} from "./audience-step-footer";
-
 
 interface AudienceStepProps {
   data: CampaignData;
@@ -18,66 +13,12 @@ interface AudienceStepProps {
 }
 
 export function AudienceStep({ data, onWriteFirst, onConfirm }: Readonly<AudienceStepProps>) {
-  const { campaign, audienceColumns: columns, initialFilters, initialRecipientCount, initialAudience } = data;
-  const { id: campaignId, audienceMode: initialAudienceMode, includedIds: initialIncludedIds, excludedIds: initialExcludedIds } = campaign;
-  const [isSaving, setIsSaving] = useState(false);
-  const [saveError, setSaveError] = useState<Error | null>(null);
-  const [lastConfirmedMode, setLastConfirmedMode] = useState<AudienceMode | null>(initialAudienceMode);
-
-  const filterEditor = useAudienceFilterEditor({
-    campaignId,
-    audienceColumns: columns,
-    initialFilters,
-    initialRecipientCount,
-  });
-
-  const { list, selection } = useAudienceTable({
-    initialPage: initialAudience,
-    filterPayloads: filterEditor.filterPayloads,
-    initialAudienceMode,
-    initialIncludedIds,
-    initialExcludedIds,
-  });
-
-  async function handleSave() {
-    setIsSaving(true);
-    setSaveError(null);
-    selection.commitFilters();
-    list.reload();
-    try {
-      const updated = await updateCampaign(campaignId, selection.audienceDefinition);
-      selection.commitAudience();
-      setLastConfirmedMode(updated.audienceMode);
-      onConfirm(selection.selectedCount);
-    } catch (err) {
-      setSaveError(err instanceof Error ? err : new Error(String(err)));
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  async function handleRecipientCountUpdate(resolution: "reapply" | "clear") {
-    setIsSaving(true);
-    setSaveError(null);
-    const definition = selection.resolvePendingFilterChange(resolution);
-    try {
-      await updateCampaign(campaignId, definition);
-    } catch (err) {
-      setSaveError(err instanceof Error ? err : new Error(String(err)));
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  const totalRecipients = initialFilters.length
-    ? Math.max(initialRecipientCount, filterEditor.recipientCount)
-    : initialRecipientCount;
-
-  const canSave =
-    selection.selectedCount > 0 &&
-    !isSaving &&
-    !selection.hasPendingFilterChange &&
-    (lastConfirmedMode === null || selection.hasAudienceChanged);
+  const {
+    columns, filterEditor, list, selection,
+    isSaving, saveError, lastConfirmedMode,
+    totalRecipients, canSave,
+    handleSave, handleRecipientCountUpdate,
+  } = useAudienceStepMediator(data, onConfirm);
 
   return (
     <div className="relative h-[calc(100vh-98px)] min-h-0 flex overflow-hidden">

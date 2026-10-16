@@ -1,5 +1,4 @@
 import {http, HttpResponse} from "msw";
-import {faker} from "@faker-js/faker";
 import type {AudienceRecipient} from "@/features/campaigns/api/audience";
 import type {AudienceFilterPayload} from "@/features/campaigns/new/audience/audience";
 
@@ -18,7 +17,7 @@ const USERS: AudienceRecipient[] = Array.from({ length: TOTAL }, (_, index) => {
   const plan = planFor(index);
   const country = ["US", "UK", "DE", "IN", "FR", "BR", "CA", "NL"][index % 8];
   return {
-    id: faker.string.uuid(),
+    id: `user-${index}`,
     email: `${first}.${index + 10}@${["company.io", "startup.co", "acme.dev"][index % 3]}`,
     attributes: {
       plan,

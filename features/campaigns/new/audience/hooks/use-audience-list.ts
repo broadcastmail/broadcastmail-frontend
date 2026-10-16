@@ -1,6 +1,7 @@
 "use client";
 
 import {useCallback, useRef, useState} from "react";
+import {toast} from "sonner";
 import {type AudienceListResponse, type AudienceRecipient, listAudience} from "@/features/campaigns/api/audience";
 import type {AudienceFilterPayload} from "@/features/campaigns/new/audience/audience";
 
@@ -58,6 +59,8 @@ export function useAudienceList({
         setCursor(page.nextCursor);
         setHasMore(page.hasMore);
         setTotal(page.total);
+      } catch {
+        toast.error("Couldn't load audience — try again.");
       } finally {
         setLoading(false);
       }

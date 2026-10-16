@@ -52,15 +52,10 @@ export function ComposeStep({
   onSend,
   onDirtyChange,
 }: Readonly<ComposeStepProps>) {
-  const draft = useCampaignDraft(campaign);
-  const { saving, dirty, saveNow } = useCampaignAutosave({
+  const rawDraft = useCampaignDraft(campaign);
+  const { saving, saved, dirty, saveNow, draft } = useCampaignAutosave(rawDraft, {
     campaignId: campaign.id,
     enabled: true,
-    name: draft.name,
-    subject: draft.subject,
-    source: draft.source,
-    visualBodyHtml: draft.visualBody.html,
-    importedHtml: draft.importedHtml,
   });
   const [saveError, setSaveError] = useState<Error | null>(null);
   const [editingName, setEditingName] = useState(false);
@@ -172,6 +167,7 @@ export function ComposeStep({
         selectedRecipientCount={recipientCount}
         counting={false}
         saving={saving}
+        saved={saved}
         sending={sending}
         canSend={sendEnabled}
         resendConfigured={resendConfigured}

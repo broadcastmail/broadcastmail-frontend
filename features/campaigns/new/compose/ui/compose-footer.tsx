@@ -8,6 +8,7 @@ interface ComposeFooterProps {
   selectedRecipientCount: number;
   counting: boolean;
   saving: boolean;
+  saved: boolean;
   sending: boolean;
   canSend: boolean;
   resendConfigured: boolean;
@@ -21,6 +22,7 @@ export function ComposeFooter({
   selectedRecipientCount,
   counting,
   saving,
+  saved,
   sending,
   canSend,
   resendConfigured,
@@ -61,7 +63,7 @@ export function ComposeFooter({
           disabled={saving || sending}
           className="flex items-center gap-1.5 border border-white/[0.13] text-[#B9B9C2] hover:text-[#ECECF1] hover:border-white/[0.24] text-[13px] font-medium rounded-lg px-3.5 py-2.5 disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {saving ? "Saving..." : "Save"}
+          {saving ? "Saving..." : saved ? "Saved" : "Save"}
         </button>
         <SendCampaignButton active={canSend} sending={sending} resendConfigured={resendConfigured} tooltip={!audienceConfirmed ? "Set your audience first" : undefined} onSend={onSend} />
       </div>

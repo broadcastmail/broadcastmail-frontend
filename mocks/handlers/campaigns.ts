@@ -21,6 +21,7 @@ const sseEncoder = new TextEncoder();
 function encodeStatusEvent(campaign: Campaign): Uint8Array {
   const event: CampaignStatusEvent = {
     id: campaign.id,
+    name: campaign.name,
     status: campaign.status,
     recipientsCount: campaign.recipientCount,
     sentCount: campaign.sentCount,
@@ -69,6 +70,21 @@ async function syncToServer(campaign: Campaign, filters?: AudienceFilterPayload[
 // Merges this campaign's persisted filters and audience definition in, same
 // as the real backend's CampaignController.withFilters — used for every
 // single-campaign response (not the list endpoint, which doesn't bother either).
+type AudiencePatch = { audienceMode?: AudienceMode; includedIds?: string[]; excludedIds?: string[] };
+
+function hasAudienceFields(patch: AudiencePatch): boolean {
+  return patch.audienceMode !== undefined || patch.includedIds !== undefined || patch.excludedIds !== undefined;
+}
+
+function mergeAudienceStore(id: string, patch: AudiencePatch): void {
+  const prev = audienceStore.get(id) ?? { audienceMode: null, includedIds: null, excludedIds: null };
+  audienceStore.set(id, {
+    audienceMode: patch.audienceMode ?? prev.audienceMode,
+    includedIds: patch.includedIds ?? prev.includedIds,
+    excludedIds: patch.excludedIds ?? prev.excludedIds,
+  });
+}
+
 function withFilters(campaign: Campaign): Campaign {
   const filters = filtersStore.get(campaign.id);
   const audience = audienceStore.get(campaign.id);
@@ -188,10 +204,9 @@ function freeze(id: string, patch: Partial<Campaign>) {
 /** Starts (or restarts) the live-progressing lifecycle for a just-confirmed
  *  / retried campaign — status will animate RESOLVING → SENDING → terminal
  *  in real time as resolveCampaign() gets polled. */
-function startSimulation(id: string, recipientCount: number) {
-  const resolutionFailed = chance(0.1);
+function startSimulation(id: string, recipientCount: number, confirmedAt: number = Date.now(), resolutionFailed: boolean = chance(0.1)) {
   sims.set(id, {
-    confirmedAt: Date.now(),
+    confirmedAt,
     resolutionFailed,
     recipients: resolutionFailed ? [] : generateRecipients(recipientCount),
     frozen: false,
@@ -207,6 +222,20 @@ function startSimulation(id: string, recipientCount: number) {
     failedCount: 0,
     sentAt: null,
   });
+}
+
+export function resumeSimulations(): void {
+  for (const [id, campaign] of store.entries()) {
+    if (
+      (campaign.status === "RESOLVING" || campaign.status === "SENDING") &&
+      !sims.has(id)
+    ) {
+      const recipientCount = campaign.recipientCount ?? 100;
+      const progress = recipientCount > 0 ? Math.min((campaign.sentCount ?? 0) / recipientCount, 1) : 0;
+      const sendElapsed = progress * SEND_MS;
+      startSimulation(id, recipientCount, Date.now() - RESOLVE_MS - sendElapsed, false);
+    }
+  }
 }
 
 /** Same lifecycle as startSimulation, but already-terminal on arrival — for
@@ -384,6 +413,35 @@ function flushTerminated(inFlight: Set<string>, activeIds: Set<string>, controll
   }
 }
 
+function resolveRecipientCount(audience: AudienceDefinition | undefined, filters: AudienceFilterPayload[]): number {
+  if (audience?.audienceMode === "manual") return (audience.includedIds ?? []).length;
+  if (audience?.audienceMode === "all") return Math.max(0, TOTAL_RECIPIENTS - (audience.excludedIds ?? []).length);
+  return estimatePreviewCount(filters);
+}
+
+async function createRetryCampaign(originalId: string, recipientCount: number) {
+  const original = store.get(originalId) as Campaign;
+  const retry = fakeCampaign({
+    retryOfCampaignId: originalId,
+    name: original.name,
+    subject: original.subject,
+    bodyHtml: original.bodyHtml,
+    status: "DRAFT",
+    recipientCount: null,
+    sentCount: 0,
+    deliveredCount: 0,
+    openedCount: 0,
+    bouncedCount: 0,
+    failedCount: 0,
+    sentAt: null,
+    createdAt: new Date().toISOString(),
+  });
+  store.set(retry.id, retry);
+  startSimulation(retry.id, recipientCount);
+  await syncToServer(store.get(retry.id) as Campaign);
+  return HttpResponse.json(withFilters(resolveCampaign(retry.id)), { status: 202 });
+}
+
 export const campaignHandlers = [
   http.get("*/api/v1/campaigns", () => {
     const campaigns = [...store.keys()]
@@ -441,8 +499,10 @@ export const campaignHandlers = [
             if (cancelled) return;
             inFlight.add(campaign.id);
             controller.enqueue(encodeStatusEvent(campaign));
+            if (campaign.status === "SENDING") void syncToServer(campaign);
           }
-          await sleep(2000);
+          const anySending = active.some((c) => c.status === "SENDING");
+          await sleep(anySending ? 400 : 2000);
         }
       },
       cancel() { cancelled = true; },
@@ -475,30 +535,19 @@ export const campaignHandlers = [
   }),
 
   http.patch("*/api/v1/campaigns/:id", async ({ params, request }) => {
-    // Also the sending-overlay.tsx "Saving campaign" step's delay — held
-    // long enough to actually read, not just flicker past.
     await delay(1100);
     const id = params.id as string;
     const body = (await request.json()) as Partial<Campaign> & {
       filters?: AudienceFilterPayload[];
-      audienceMode?: AudienceMode;
-      includedIds?: string[];
-      excludedIds?: string[];
-    };
+    } & AudiencePatch;
     const { filters, audienceMode, includedIds, excludedIds, ...patch } = body;
+    const audiencePatch: AudiencePatch = { audienceMode, includedIds, excludedIds };
     const existing = store.get(id) ?? fakeCampaign({ id, status: "DRAFT" });
     const updated = { ...existing, ...patch };
     store.set(id, updated);
     if (filters !== undefined) filtersStore.set(id, filters);
-    if (audienceMode !== undefined || includedIds !== undefined || excludedIds !== undefined) {
-      const prev = audienceStore.get(id) ?? { audienceMode: null, includedIds: null, excludedIds: null };
-      audienceStore.set(id, {
-        audienceMode: audienceMode ?? prev.audienceMode,
-        includedIds: includedIds ?? prev.includedIds,
-        excludedIds: excludedIds ?? prev.excludedIds,
-      });
-    }
-    const audienceData = audienceMode !== undefined || includedIds !== undefined || excludedIds !== undefined ? audienceStore.get(id) : undefined;
+    if (hasAudienceFields(audiencePatch)) mergeAudienceStore(id, audiencePatch);
+    const audienceData = hasAudienceFields(audiencePatch) ? audienceStore.get(id) : undefined;
     await syncToServer(updated, filters, audienceData);
     return HttpResponse.json(withFilters(updated));
   }),
@@ -520,10 +569,6 @@ export const campaignHandlers = [
   }),
 
   http.post("*/api/v1/campaigns/:id/confirm", async ({ params, request }) => {
-    // Held noticeably longer than the other endpoints — this is the step
-    // the sending-overlay.tsx takeover exists to cover, so it needs to be
-    // slow enough in the mock to actually be visible rather than flashing
-    // "Sending…" for one frame.
     await delay(2200);
     const id = params.id as string;
     if (!store.has(id)) return new HttpResponse(null, { status: 404 });
@@ -539,20 +584,11 @@ export const campaignHandlers = [
     }
     const audience = audienceStore.get(id);
     const savedFilters = filtersStore.get(id) ?? [];
-    // Mirror CampaignConfirmService: reject if no audience mode and no filters.
     if ((audience?.audienceMode == null) && savedFilters.length === 0) {
       return HttpResponse.json({ error: "Audience not configured" }, { status: 422 });
     }
-    let recipientCount: number;
-    if (audience?.audienceMode === "manual") {
-      recipientCount = (audience.includedIds ?? []).length;
-    } else if (audience?.audienceMode === "all") {
-      recipientCount = Math.max(0, TOTAL_RECIPIENTS - (audience.excludedIds ?? []).length);
-    } else {
-      // audienceMode = null + non-empty filters: backward-compat, treat as "filter"
-      recipientCount = estimatePreviewCount(savedFilters);
-    }
-    startSimulation(id, recipientCount);
+    startSimulation(id, resolveRecipientCount(audience, savedFilters));
+    await syncToServer(store.get(id) as Campaign);
     return new HttpResponse(null, { status: 202 });
   }),
 
@@ -567,25 +603,7 @@ export const campaignHandlers = [
     const retryExists = [...store.values()].some((c) => c.retryOfCampaignId === id);
     if (retryExists)
       return HttpResponse.json({ error: "A retry campaign already exists" }, { status: 409 });
-    const retryCampaign = fakeCampaign({
-      retryOfCampaignId: id,
-      name: existing.name,
-      subject: existing.subject,
-      bodyHtml: existing.bodyHtml,
-      status: "DRAFT",
-      recipientCount: null,
-      sentCount: 0,
-      deliveredCount: 0,
-      openedCount: 0,
-      bouncedCount: 0,
-      failedCount: 0,
-      sentAt: null,
-      createdAt: new Date().toISOString(),
-    });
-    store.set(retryCampaign.id, retryCampaign);
-    startSimulation(retryCampaign.id, existing.recipientCount ?? faker.number.int({ min: 40, max: 400 }));
-    await syncToServer(store.get(retryCampaign.id) as Campaign);
-    return HttpResponse.json(withFilters(resolveCampaign(retryCampaign.id)), { status: 202 });
+    return createRetryCampaign(id, existing.recipientCount ?? faker.number.int({ min: 40, max: 400 }));
   }),
 
   http.post(
@@ -602,25 +620,7 @@ export const campaignHandlers = [
       const failedRecipients = sim
         ? sim.recipients.filter((r) => r.status === "FAILED" || r.status === "BOUNCED")
         : [];
-      const retryCampaign = fakeCampaign({
-        retryOfCampaignId: id,
-        name: existing.name,
-        subject: existing.subject,
-        bodyHtml: existing.bodyHtml,
-        status: "DRAFT",
-        recipientCount: null,
-        sentCount: 0,
-        deliveredCount: 0,
-        openedCount: 0,
-        bouncedCount: 0,
-        failedCount: 0,
-        sentAt: null,
-        createdAt: new Date().toISOString(),
-      });
-      store.set(retryCampaign.id, retryCampaign);
-      startSimulation(retryCampaign.id, Math.max(1, failedRecipients.length));
-      await syncToServer(store.get(retryCampaign.id) as Campaign);
-      return HttpResponse.json(withFilters(resolveCampaign(retryCampaign.id)), { status: 202 });
+      return createRetryCampaign(id, Math.max(1, failedRecipients.length));
     },
   ),
 

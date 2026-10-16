@@ -17,7 +17,7 @@ interface AudienceStepFooterProps {
 }
 
 export function AudienceStepFooter({
-    initialAudienceMode, selectedCount, isSaving, saveError,
+    initialAudienceMode, isSaving, saveError,
     hasPendingFilterChange, canSave,
     onWriteFirst, onSave, onKeepSelection, onClearSelection,
 }: Readonly<AudienceStepFooterProps>) {

@@ -1,6 +1,7 @@
 "use client";
 
 import {useState} from "react";
+import {toast} from "sonner";
 import {X} from "lucide-react";
 import type {AudienceFilterValuesResponse} from "@/features/campaigns/api/audience";
 import {getAudienceFilterValues} from "@/features/campaigns/api/audience";
@@ -34,52 +35,42 @@ export function AudienceFilters({
   const [loadingFilterId, setLoadingFilterId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  async function handleAdd() {
-    const filter = onAdd();
-    if (!filter) return;
 
-    setLoadingFilterId(filter.id);
+  // Template method pattern
+  async function loadFilterValues(filterId: string, columnKeyVal: string, onLoaded?: () => void) {
+    setLoadingFilterId(filterId);
     try {
-      const response = await getAudienceFilterValues(columnFor(columns, filter.column).name);
-      setValuesByFilterId((current) => ({ ...current, [filter.id]: response }));
-      setEditingId(filter.id);
-    } catch (error) {
-      console.error(`Failed to load audience filter values for ${filter.column}`, error);
+      const response = await getAudienceFilterValues(columnFor(columns, columnKeyVal).name);
+      setValuesByFilterId((current) => ({ ...current, [filterId]: response }));
+      onLoaded?.();
+    } catch {
+      toast.error("Couldn't load filter values — try again.");
     } finally {
       setLoadingFilterId(null);
     }
   }
 
+  async function handleAdd() {
+    const filter = onAdd();
+    if (!filter) return;
+    await loadFilterValues(filter.id, filter.column, () => setEditingId(filter.id));
+  }
+
   async function handleEditStart(id: string, column: string) {
     setEditingId(id);
     if (valuesByFilterId[id]) return;
-    setLoadingFilterId(id);
-    try {
-      const response = await getAudienceFilterValues(columnFor(columns, column).name);
-      setValuesByFilterId((current) => ({ ...current, [id]: response }));
-    } catch (error) {
-      console.error(`Failed to load audience filter values for ${column}`, error);
-    } finally {
-      setLoadingFilterId(null);
-    }
+    await loadFilterValues(id, column);
   }
 
   async function handlePatchFilter(id: string, patch: Partial<AudienceFilter>) {
     onPatch(id, patch);
     if (!patch.column) return;
     setValuesByFilterId((current) => {
-      const { [id]: _, ...rest } = current;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { [id]: _removed, ...rest } = current;
       return rest;
     });
-    setLoadingFilterId(id);
-    try {
-      const response = await getAudienceFilterValues(columnFor(columns, patch.column).name);
-      setValuesByFilterId((current) => ({ ...current, [id]: response }));
-    } catch (error) {
-      console.error(`Failed to load audience filter values for ${patch.column}`, error);
-    } finally {
-      setLoadingFilterId(null);
-    }
+    await loadFilterValues(id, patch.column);
   }
 
   return (
@@ -156,6 +147,35 @@ function AppliedAudienceFilter({
   );
 }
 
+function useFilterValues(columnName: string, initialPage?: AudienceFilterValuesResponse) {
+  const [values, setValues] = useState(initialPage?.values ?? []);
+  const [nextCursor, setNextCursor] = useState<string | null>(initialPage?.nextCursor ?? null);
+  const [hasMore, setHasMore] = useState(initialPage?.hasMore ?? false);
+  const [loading, setLoading] = useState(false);
+
+  const uniqueValues = Array.from(
+    new Map(values.map((v) => [v.value, v])).values(),
+  );
+
+  async function loadMore() {
+    if (!hasMore || !nextCursor || loading) return;
+    setLoading(true);
+    try {
+      const response = await getAudienceFilterValues(columnName, nextCursor);
+      setValues((current) => [
+        ...current,
+        ...response.values.filter((v) => !current.some((item) => item.value === v.value)),
+      ]);
+      setNextCursor(response.nextCursor);
+      setHasMore(response.hasMore);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return { uniqueValues, hasMore, loading, loadMore };
+}
+
 function AudienceFilterEditor({
   columns,
   filter,
@@ -172,29 +192,7 @@ function AudienceFilterEditor({
     initialPage?: AudienceFilterValuesResponse;
 }>) {
   const definition = columnFor(columns, filter.column);
-  const [values, setValues] = useState(initialPage?.values ?? []);
-  const [nextCursor, setNextCursor] = useState<string | null>(initialPage?.nextCursor ?? null);
-  const [hasMore, setHasMore] = useState(initialPage?.hasMore ?? false);
-  const [loadingValues, setLoadingValues] = useState(false);
-  const uniqueValues = Array.from(
-    new Map(values.map((value) => [value.value, value])).values(),
-  );
-
-  async function loadMoreValues() {
-    if (!hasMore || !nextCursor || loadingValues) return;
-    setLoadingValues(true);
-    try {
-      const response = await getAudienceFilterValues(definition.name, nextCursor);
-      setValues((current) => [
-        ...current,
-        ...response.values.filter((value) => !current.some((item) => item.value === value.value)),
-      ]);
-      setNextCursor(response.nextCursor);
-      setHasMore(response.hasMore);
-    } finally {
-      setLoadingValues(false);
-    }
-  }
+  const { uniqueValues, hasMore, loading: loadingValues, loadMore: loadMoreValues } = useFilterValues(definition.name, initialPage);
 
   return (
     <div className="flex flex-col gap-2">
