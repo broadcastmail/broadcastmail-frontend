@@ -1,19 +1,14 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { SelectProjectFlow } from "@/components/onboarding/select-project/select-project-flow";
-import { SchemaFlow } from "@/components/onboarding/schema/schema-flow";
-import {
-  getReconnectSchema,
-  updateReconnectProject,
-  updateReconnectTable,
-  updateReconnectColumns,
-} from "@/lib/api/schema";
-import type { ConnectionProject } from "@/lib/types/connection";
-import type { DetectedSchema, SchemaIntrospectionResult } from "@/lib/types/onboarding";
+import {useState} from "react";
+import {useRouter} from "next/navigation";
+import {toast} from "sonner";
+import {Dialog, DialogContent, DialogTitle} from "@/components/ui/dialog";
+import {SelectProjectFlow} from "@/components/onboarding/select-project/select-project-flow";
+import {SchemaFlow} from "@/components/onboarding/schema/schema-flow";
+import {detectSchemaForReconnect, updateColumns, updateProject, updateTable,} from "@/lib/api/generated/connections/connections";
+import type {ConnectionProject} from "@/lib/types/connection";
+import type {DetectedSchema, SchemaIntrospectionResult} from "@/lib/types/onboarding";
 
 interface ChangeProjectDialogProps {
   open: boolean;
@@ -28,24 +23,36 @@ type Stage =
 
 // Switches project on the same account, no OAuth. Resets table/columns
 // downstream — a different project means a different database.
+
+async function handleSelectTable(candidate: DetectedSchema) {
+    await updateTable({ userTableSchema: candidate.userTableSchema, userTableName: candidate.userTableName, userIdColumn: candidate.userIdColumn });
+    return { status: "DETECTED" as const, ...candidate };
+}
 export function ChangeProjectDialog({
   open,
   onOpenChange,
   projects,
-}: ChangeProjectDialogProps) {
+}: Readonly<ChangeProjectDialogProps>) {
   const router = useRouter();
   const [stage, setStage] = useState<Stage>({ name: "select-project" });
+
+  async function handleProjectContinue(projectRef: string) {
+    await updateProject({ projectRef });
+    let schema: SchemaIntrospectionResult | null = null;
+    try {
+      schema = await detectSchemaForReconnect({ projectRef }) as SchemaIntrospectionResult | null;
+    } catch {
+      // schema stays null
+    }
+    setStage({ name: "schema", schema });
+  }
 
   function handleOpenChange(next: boolean) {
     if (!next) setStage({ name: "select-project" });
     onOpenChange(next);
   }
 
-  async function handleProjectContinue(projectRef: string) {
-    await updateReconnectProject(projectRef);
-    const schema = await getReconnectSchema(projectRef);
-    setStage({ name: "schema", schema });
-  }
+
 
   function handleSchemaComplete() {
     toast.success("Project changed");
@@ -53,14 +60,6 @@ export function ChangeProjectDialog({
     router.refresh();
   }
 
-  async function handleSelectTable(candidate: DetectedSchema) {
-    await updateReconnectTable(
-      candidate.userTableSchema,
-      candidate.userTableName,
-      candidate.userIdColumn,
-    );
-    return { status: "DETECTED" as const, ...candidate };
-  }
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -85,7 +84,7 @@ export function ChangeProjectDialog({
             <SchemaFlow
               schema={stage.schema}
               onComplete={handleSchemaComplete}
-              onConfirm={updateReconnectColumns}
+              onConfirm={(columnNames) => updateColumns({ columnNames })}
               onSelectTable={handleSelectTable}
               skipReview
             />

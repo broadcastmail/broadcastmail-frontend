@@ -1,17 +1,42 @@
 "use client";
 
 import {useSyncExternalStore} from "react";
-import type {Campaign} from "@/lib/types/campaigns";
+import type {Campaign, CampaignStatus} from "@/lib/types/campaigns";
+import type {CampaignSummaryResponse} from "@/lib/api/generated/openAPIDefinition.schemas";
+import {useListCampaigns} from "@/lib/api/generated/campaigns/campaigns";
 import {EmptyState} from "@/components/dashboard/empty-state";
 import {CampaignTable} from "@/components/dashboard/campaign-table";
 import {getSessionDrafts, subscribeSessionDrafts} from "@/features/campaigns/shared/session-drafts";
 import {getLiveStatus, subscribeLiveStatus} from "@/features/campaigns/shared/live-status";
 
-interface CampaignSectionProps {
-  campaigns: Campaign[];
+function toDisplayCampaign(c: CampaignSummaryResponse): Campaign {
+  return {
+    id: c.id ?? '',
+    name: c.name ?? '',
+    subject: '',
+    status: (c.status as CampaignStatus) ?? 'DRAFT',
+    bodyHtml: null,
+    retryOfCampaignId: null,
+    recipientCount: c.recipientCount ?? null,
+    sentCount: 0,
+    deliveredCount: 0,
+    openedCount: 0,
+    bouncedCount: 0,
+    failedCount: 0,
+    sentAt: c.sentAt ?? null,
+    createdAt: c.createdAt ?? '',
+    filters: [],
+    audienceMode: null,
+    includedIds: null,
+    excludedIds: null,
+  };
 }
 
-export function CampaignSection({ campaigns }: Readonly<CampaignSectionProps>) {
+export function CampaignSection() {
+  const { data } = useListCampaigns(
+    { pageable: { size: 50, sort: ['createdAt,desc'] } },
+    { query: { staleTime: 30_000 } },
+  );
 
   const liveStatus = useSyncExternalStore(
     subscribeLiveStatus,
@@ -23,9 +48,11 @@ export function CampaignSection({ campaigns }: Readonly<CampaignSectionProps>) {
     getSessionDrafts,
     getSessionDrafts,
   );
-  const serverIds = new Set(campaigns.map((c) => c.id));
+
+  const serverCampaigns = (data?.content ?? []).map(toDisplayCampaign);
+  const serverIds = new Set(serverCampaigns.map((c) => c.id));
   const merged = [
-    ...campaigns,
+    ...serverCampaigns,
     ...sessionDrafts.filter((c) => !serverIds.has(c.id)),
   ].map((c) => {
     const live = liveStatus.get(c.id);

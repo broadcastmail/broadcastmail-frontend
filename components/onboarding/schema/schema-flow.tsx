@@ -2,8 +2,7 @@
 
 import {useState} from "react";
 import {useRouter} from "next/navigation";
-import {apiClient} from "@/lib/api/client/client";
-import {selectTable} from "@/lib/api/schema";
+import {confirmSchema, selectTable as selectTableApi, testConnection,} from "@/lib/api/generated/onboarding/onboarding";
 import {ONBOARDING_STEP_PATH} from "@/lib/onboarding-steps";
 import type {DetectedSchema, ResolvedSchema, SchemaIntrospectionResult,} from "@/lib/types/onboarding";
 import {NoSchemaView} from "./no-schema-view";
@@ -17,11 +16,12 @@ import {columnKey, columnNameFromKey} from "./column-key";
 type View = "table-picker" | "columns" | "review" | "fallback";
 
 async function defaultConfirm(columnNames: string[]): Promise<void> {
-  await apiClient.post("/api/v1/onboarding/schema/confirm", { columnNames });
+  await confirmSchema({ columnNames });
 }
 
-function defaultSelectTable(candidate: DetectedSchema) {
-  return selectTable(candidate.userTableSchema, candidate.userTableName);
+async function defaultSelectTable(candidate: DetectedSchema) {
+  const result = await selectTableApi({ userTableSchema: candidate.userTableSchema, userTableName: candidate.userTableName });
+  return result as unknown as { status: "DETECTED" } & DetectedSchema;
 }
 
 function enabledKeysFor(resolved: {
@@ -140,7 +140,7 @@ export function SchemaFlow({
     setTesting(true);
     setTestError(null);
     try {
-      await apiClient.post("/api/v1/onboarding/schema/test");
+      await testConnection();
       finish();
     } catch {
       setTestError(

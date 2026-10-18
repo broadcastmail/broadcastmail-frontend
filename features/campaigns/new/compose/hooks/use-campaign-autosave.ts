@@ -1,8 +1,10 @@
 "use client";
 
 import {useCallback, useEffect, useRef, useState} from "react";
+import {useQueryClient} from "@tanstack/react-query";
 import {toast} from "sonner";
-import {type CreateCampaignPayload, updateCampaign,} from "@/features/campaigns/api/campaigns";
+import {getGetCampaignQueryKey, updateCampaign} from "@/lib/api/generated/campaigns/campaigns";
+import type {UpdateCampaignRequest} from "@/lib/api/generated/openAPIDefinition.schemas";
 import {updateSessionDraft} from "@/features/campaigns/shared/session-drafts";
 import {sanitizeHtmlSource} from "@/features/campaigns/new/compose/lib/sanitize-html-source";
 import {useDebounceController} from "@/lib/hooks/use-debounced-callback";
@@ -12,7 +14,7 @@ function useUnitOfWork<T extends object>() {
   const committedRef = useRef<T | null>(null);
 
   function begin(snapshot: T) {
-    if (committedRef.current === null) committedRef.current = snapshot;
+      committedRef.current ??= snapshot;
   }
 
   function isDirty(current: T): boolean {
@@ -22,7 +24,7 @@ function useUnitOfWork<T extends object>() {
   }
 
   function commit(snapshot: T) {
-    committedRef.current = Object.assign({}, snapshot);
+    committedRef.current = {...snapshot};
   }
 
   return { begin, isDirty, commit };
@@ -54,6 +56,7 @@ export function useCampaignAutosave(
   draft: CampaignDraft,
   { campaignId, enabled, delayMs = 1000 }: UseCampaignAutosaveOptions,
 ): UseCampaignAutosaveResult {
+  const queryClient = useQueryClient();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const savedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -79,7 +82,7 @@ export function useCampaignAutosave(
   if (enabled) uow.begin(snapshot);
   const dirty = enabled && uow.isDirty(snapshot);
 
-  const buildPayload = useCallback((): CreateCampaignPayload => {
+  const buildPayload = useCallback((): UpdateCampaignRequest => {
     const l = latestRef.current;
     const bodyHtml = l.source === "visual" ? l.visualBodyHtml : sanitizeHtmlSource(l.importedHtml);
     return { name: l.name, subject: l.subject, bodyHtml };
@@ -92,7 +95,8 @@ export function useCampaignAutosave(
     cancel();
     setSaving(true);
     try {
-      await updateCampaign(campaignId, buildPayload());
+      const updated = await updateCampaign(campaignId, buildPayload());
+      queryClient.setQueryData(getGetCampaignQueryKey(campaignId), updated);
       updateSessionDraft(campaignId, {
         name: latestRef.current.name,
         subject: latestRef.current.subject,

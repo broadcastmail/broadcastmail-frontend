@@ -3,7 +3,7 @@
 import type {RefObject} from "react";
 import {useLayoutEffect, useRef, useState} from "react";
 import {toast} from "sonner";
-import {listAudience} from "@/features/campaigns/api/audience";
+import {listAudience} from "@/lib/api/generated/campaigns/campaigns";
 import {useDebounceController} from "@/lib/hooks/use-debounced-callback";
 import {
     AUDIENCE_OPS,
@@ -59,9 +59,9 @@ function useRecipientCount(
   async function run(requestId: number) {
     if (filtersRef.current.some((f) => !f.value.trim())) { setCounting(false); return; }
     try {
-      const page = await listAudience({ filters: toFilterPayloads(filtersRef.current, columnsRef.current), limit: 1 });
+      const page = await listAudience(toFilterPayloads(filtersRef.current, columnsRef.current), { limit: 1 });
       if (requestId !== requestRef.current) return;
-      setRecipientCount(page.total);
+      setRecipientCount(page.total ?? 0);
       onAppliedRef.current?.();
     } catch {
       toast.error("Couldn't update recipient count — try again.");

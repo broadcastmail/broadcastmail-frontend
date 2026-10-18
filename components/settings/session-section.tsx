@@ -1,23 +1,22 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { SectionCard } from "@/components/layout/section-card";
-import { logout } from "@/lib/api/auth";
+import {useRouter} from "next/navigation";
+import {useQueryClient} from "@tanstack/react-query";
+import {SectionCard} from "@/components/layout/section-card";
+import {useLogout} from "@/lib/api/generated/auth/auth";
 
 export function SessionSection() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
 
-  async function handleSignOut() {
-    setLoading(true);
-    try {
-      await logout();
-      router.push("/");
-    } catch {
-      setLoading(false);
-    }
-  }
+  const { mutate: doLogout, isPending: loading } = useLogout({
+    mutation: {
+      onSettled: () => {
+        queryClient.clear();
+        router.push("/");
+      },
+    },
+  });
 
   return (
     <SectionCard title="Session">
@@ -28,7 +27,7 @@ export function SessionSection() {
         </p>
         <button
           type="button"
-          onClick={handleSignOut}
+          onClick={() => doLogout()}
           disabled={loading}
           className="bg-transparent border border-white/13 text-[#B9B9C2] text-[12px] font-medium rounded-[7px] px-3 py-1.75 whitespace-nowrap transition-colors hover:border-white/24 hover:text-text-primary disabled:opacity-60 disabled:cursor-wait cursor-pointer"
         >

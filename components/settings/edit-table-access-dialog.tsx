@@ -1,14 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { SchemaFlow } from "@/components/onboarding/schema/schema-flow";
-import { updateReconnectTable, updateReconnectColumns } from "@/lib/api/schema";
-import type {
-  DetectedSchema,
-  SchemaIntrospectionResult,
-} from "@/lib/types/onboarding";
+import {useRouter} from "next/navigation";
+import {toast} from "sonner";
+import {Dialog, DialogContent, DialogTitle} from "@/components/ui/dialog";
+import {SchemaFlow} from "@/components/onboarding/schema/schema-flow";
+import {updateColumns, updateTable} from "@/lib/api/generated/connections/connections";
+import type {DetectedSchema, SchemaIntrospectionResult,} from "@/lib/types/onboarding";
 
 interface EditTableAccessDialogProps {
   open: boolean;
@@ -16,11 +13,16 @@ interface EditTableAccessDialogProps {
   schema: SchemaIntrospectionResult | null;
 }
 
+async function handleSelectTable(candidate: DetectedSchema) {
+    await updateTable({ userTableSchema: candidate.userTableSchema, userTableName: candidate.userTableName, userIdColumn: candidate.userIdColumn });
+    return { status: "DETECTED" as const, ...candidate };
+}
+
 export function EditTableAccessDialog({
   open,
   onOpenChange,
   schema,
-}: EditTableAccessDialogProps) {
+}: Readonly<EditTableAccessDialogProps>) {
   const router = useRouter();
 
   function handleComplete() {
@@ -29,14 +31,7 @@ export function EditTableAccessDialog({
     router.refresh();
   }
 
-  async function handleSelectTable(candidate: DetectedSchema) {
-    await updateReconnectTable(
-      candidate.userTableSchema,
-      candidate.userTableName,
-      candidate.userIdColumn,
-    );
-    return { status: "DETECTED" as const, ...candidate };
-  }
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -45,7 +40,7 @@ export function EditTableAccessDialog({
         <SchemaFlow
           schema={schema}
           onComplete={handleComplete}
-          onConfirm={updateReconnectColumns}
+          onConfirm={(columnNames) => updateColumns({ columnNames })}
           onSelectTable={handleSelectTable}
           skipReview
         />

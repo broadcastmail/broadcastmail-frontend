@@ -1,6 +1,8 @@
 import {http, HttpResponse} from "msw";
-import type {AudienceRecipient} from "@/features/campaigns/api/audience";
+import type {AudienceRecipient} from "@/lib/api/generated/openAPIDefinition.schemas";
 import type {AudienceFilterPayload} from "@/features/campaigns/new/audience/audience";
+
+type AttrValue = string | number | boolean | null;
 
 const TOTAL = 4960;
 function planFor(index: number) {
@@ -30,7 +32,7 @@ const USERS: AudienceRecipient[] = Array.from({ length: TOTAL }, (_, index) => {
 
 function applyPredicates(user: AudienceRecipient, predicates: AudienceFilterPayload[]): boolean {
   return predicates.every((p) => {
-    const value = String(user.attributes[p.columnName] ?? "").toLowerCase();
+    const value = String((user.attributes?.[p.columnName] as AttrValue) ?? "").toLowerCase();
     const target = p.filterValue.trim().toLowerCase();
     if (!target) return true;
     switch (p.operator) {
@@ -45,18 +47,17 @@ function applyPredicates(user: AudienceRecipient, predicates: AudienceFilterPayl
 }
 
 export const audienceHandlers = [
-  http.get("*/api/v1/audience/list", ({ request }) => {
+  http.post("*/api/v1/campaigns/audience/list", async ({ request }) => {
     const url = new URL(request.url);
     const cursor = url.searchParams.get("cursor");
     const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 50), 1), 100);
-    const rawFilters = url.searchParams.get("filters");
     const sortKey = url.searchParams.get("sortKey") ?? "created_at";
     const sortDirection = url.searchParams.get("sortDirection") ?? "desc";
-    const predicates: AudienceFilterPayload[] = rawFilters ? (JSON.parse(rawFilters) as AudienceFilterPayload[]) : [];
+    const predicates: AudienceFilterPayload[] = await request.json() as AudienceFilterPayload[];
     const filtered = predicates.length ? USERS.filter((u) => applyPredicates(u, predicates)) : USERS;
     const sorted = [...filtered].sort((a, b) => {
-      const left = String(a.attributes[sortKey] ?? a.email);
-      const right = String(b.attributes[sortKey] ?? b.email);
+      const left = String((a.attributes?.[sortKey] as AttrValue) ?? a.email);
+      const right = String((b.attributes?.[sortKey] as AttrValue) ?? b.email);
       const result = left.localeCompare(right, undefined, { numeric: true });
       return sortDirection === "asc" ? result : -result;
     });
@@ -72,13 +73,13 @@ export const audienceHandlers = [
     });
   }),
 
-  http.get("*/api/v1/audience/filters", ({ request }) => {
+  http.get("*/api/v1/campaigns/audience/filters", ({ request }) => {
     const url = new URL(request.url);
     const column = url.searchParams.get("column") ?? "plan";
     const cursor = url.searchParams.get("cursor");
     const counts = new Map<string, number>();
     for (const recipient of USERS) {
-      const value = String(recipient.attributes[column] ?? "");
+      const value = String((recipient.attributes?.[column] as AttrValue) ?? "");
       counts.set(value, (counts.get(value) ?? 0) + 1);
     }
     const values = [...counts.entries()]

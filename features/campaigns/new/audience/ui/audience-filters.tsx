@@ -1,10 +1,9 @@
 "use client";
 
 import {useState} from "react";
-import {toast} from "sonner";
+import {useInfiniteQuery} from "@tanstack/react-query";
 import {X} from "lucide-react";
-import type {AudienceFilterValuesResponse} from "@/features/campaigns/api/audience";
-import {getAudienceFilterValues} from "@/features/campaigns/api/audience";
+import {listFilterValues} from "@/lib/api/generated/campaigns/campaigns";
 import type {AudienceColumn, AudienceFilter} from "@/features/campaigns/new/audience/audience";
 import {AUDIENCE_OPS, columnFor, columnKey} from "@/features/campaigns/new/audience/audience";
 import {Select, SelectContent, SelectItem, SelectTrigger, SelectValue} from "@/components/ui/select";
@@ -29,48 +28,11 @@ export function AudienceFilters({
   onPatch,
   onRemove,
 }: Readonly<AudienceFiltersProps>) {
-  const [valuesByFilterId, setValuesByFilterId] = useState<
-    Record<string, AudienceFilterValuesResponse>
-  >({});
-  const [loadingFilterId, setLoadingFilterId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-
-  // Template method pattern
-  async function loadFilterValues(filterId: string, columnKeyVal: string, onLoaded?: () => void) {
-    setLoadingFilterId(filterId);
-    try {
-      const response = await getAudienceFilterValues(columnFor(columns, columnKeyVal).name);
-      setValuesByFilterId((current) => ({ ...current, [filterId]: response }));
-      onLoaded?.();
-    } catch {
-      toast.error("Couldn't load filter values — try again.");
-    } finally {
-      setLoadingFilterId(null);
-    }
-  }
-
-  async function handleAdd() {
+  function handleAdd() {
     const filter = onAdd();
-    if (!filter) return;
-    await loadFilterValues(filter.id, filter.column, () => setEditingId(filter.id));
-  }
-
-  async function handleEditStart(id: string, column: string) {
-    setEditingId(id);
-    if (valuesByFilterId[id]) return;
-    await loadFilterValues(id, column);
-  }
-
-  async function handlePatchFilter(id: string, patch: Partial<AudienceFilter>) {
-    onPatch(id, patch);
-    if (!patch.column) return;
-    setValuesByFilterId((current) => {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { [id]: _removed, ...rest } = current;
-      return rest;
-    });
-    await loadFilterValues(id, patch.column);
+    if (filter) setEditingId(filter.id);
   }
 
   return (
@@ -78,20 +40,19 @@ export function AudienceFilters({
       <div className="text-[11.5px] font-medium uppercase tracking-[0.04em] text-[#7A7A85]">Filters</div>
       {filters.map((filter) => (
         <AppliedAudienceFilter
-          key={`${filter.id}-${valuesByFilterId[filter.id] ? "loaded" : "empty"}`}
+          key={filter.id}
           columns={columns}
           filter={filter}
-          initialPage={valuesByFilterId[filter.id]}
           editing={editingId === filter.id}
-          onEditStart={() => void handleEditStart(filter.id, filter.column)}
+          onEditStart={() => setEditingId(filter.id)}
           onEditEnd={() => setEditingId(null)}
-          onPatch={handlePatchFilter}
+          onPatch={onPatch}
           onRemove={onRemove}
         />
       ))}
       <div className="flex flex-col items-start gap-1">
-        <button type="button" onClick={() => void handleAdd()} className="text-left text-[12.5px] text-[#8E8E9A] hover:text-[#CBCBD4]">
-          {loadingFilterId ? "Loading..." : "+ Add filter"}
+        <button type="button" onClick={handleAdd} className="text-left text-[12.5px] text-[#8E8E9A] hover:text-[#CBCBD4]">
+          + Add filter
         </button>
         {filterError && <span className="text-[11px] text-[#E5726A]">{filterError}</span>}
       </div>
@@ -102,21 +63,19 @@ export function AudienceFilters({
 function AppliedAudienceFilter({
   columns,
   filter,
-  initialPage,
   editing,
   onEditStart,
   onEditEnd,
   onPatch,
   onRemove,
 }: Readonly<{
-    columns: AudienceColumn[];
-    filter: AudienceFilter;
-    initialPage?: AudienceFilterValuesResponse;
-    editing: boolean;
-    onEditStart: () => void;
-    onEditEnd: () => void;
-    onPatch: (id: string, patch: Partial<AudienceFilter>) => void;
-    onRemove: (id: string) => void;
+  columns: AudienceColumn[];
+  filter: AudienceFilter;
+  editing: boolean;
+  onEditStart: () => void;
+  onEditEnd: () => void;
+  onPatch: (id: string, patch: Partial<AudienceFilter>) => void;
+  onRemove: (id: string) => void;
 }>) {
   const definition = columnFor(columns, filter.column);
   const label = AUDIENCE_OPS[definition.type].find(([value]) => value === filter.op)?.[1] ?? filter.op;
@@ -124,10 +83,8 @@ function AppliedAudienceFilter({
   if (editing || !filter.value.trim()) {
     return (
       <AudienceFilterEditor
-        key={filter.column}
         columns={columns}
         filter={filter}
-        initialPage={initialPage}
         onPatch={onPatch}
         onRemove={onRemove}
         onDone={onEditEnd}
@@ -147,33 +104,30 @@ function AppliedAudienceFilter({
   );
 }
 
-function useFilterValues(columnName: string, initialPage?: AudienceFilterValuesResponse) {
-  const [values, setValues] = useState(initialPage?.values ?? []);
-  const [nextCursor, setNextCursor] = useState<string | null>(initialPage?.nextCursor ?? null);
-  const [hasMore, setHasMore] = useState(initialPage?.hasMore ?? false);
-  const [loading, setLoading] = useState(false);
+type FilterValueItem = { value: string; count: number };
 
-  const uniqueValues = Array.from(
-    new Map(values.map((v) => [v.value, v])).values(),
-  );
+function useFilterValues(columnName: string) {
+  const { data, isFetching, isFetchingNextPage, fetchNextPage, hasNextPage } = useInfiniteQuery({
+    queryKey: ["filterValues", columnName],
+    queryFn: ({ pageParam }) =>
+      listFilterValues({ column: columnName, cursor: pageParam }),
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+    staleTime: Infinity,
+    select: (d) => ({
+      values: d.pages.flatMap((p) =>
+        (p.values ?? []).map((v): FilterValueItem => ({ value: v.value ?? "", count: v.count ?? 0 })),
+      ),
+      hasMore: d.pages.at(-1)?.hasMore ?? false,
+    }),
+  });
 
-  async function loadMore() {
-    if (!hasMore || !nextCursor || loading) return;
-    setLoading(true);
-    try {
-      const response = await getAudienceFilterValues(columnName, nextCursor);
-      setValues((current) => [
-        ...current,
-        ...response.values.filter((v) => !current.some((item) => item.value === v.value)),
-      ]);
-      setNextCursor(response.nextCursor);
-      setHasMore(response.hasMore);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  return { uniqueValues, hasMore, loading, loadMore };
+  return {
+    values: data?.values ?? [],
+    hasMore: hasNextPage ?? false,
+    loading: isFetching || isFetchingNextPage,
+    loadMore: () => fetchNextPage(),
+  };
 }
 
 function AudienceFilterEditor({
@@ -182,17 +136,15 @@ function AudienceFilterEditor({
   onPatch,
   onRemove,
   onDone,
-  initialPage,
 }: Readonly<{
-    columns: AudienceColumn[];
-    filter: AudienceFilter;
-    onPatch: (id: string, patch: Partial<AudienceFilter>) => void;
-    onRemove: (id: string) => void;
-    onDone: () => void;
-    initialPage?: AudienceFilterValuesResponse;
+  columns: AudienceColumn[];
+  filter: AudienceFilter;
+  onPatch: (id: string, patch: Partial<AudienceFilter>) => void;
+  onRemove: (id: string) => void;
+  onDone: () => void;
 }>) {
   const definition = columnFor(columns, filter.column);
-  const { uniqueValues, hasMore, loading: loadingValues, loadMore: loadMoreValues } = useFilterValues(definition.name, initialPage);
+  const { values, hasMore, loading, loadMore } = useFilterValues(definition.name);
 
   return (
     <div className="flex flex-col gap-2">
@@ -232,20 +184,20 @@ function AudienceFilterEditor({
       </Select>
       <AudienceFilterValueSelect
         value={filter.value}
-        values={uniqueValues}
-        loading={loadingValues}
+        values={values}
+        loading={loading}
         hasMore={hasMore}
         onChange={(value) => {
           onPatch(filter.id, { value });
           onDone();
         }}
-        onLoadMore={() => void loadMoreValues()}
+        onLoadMore={() => { void loadMore(); }}
       />
       <AudienceFilterValuePills
-        values={uniqueValues}
+        values={values}
         hasMore={hasMore}
-        loading={loadingValues}
-        onLoadMore={loadMoreValues}
+        loading={loading}
+        onLoadMore={() => loadMore()}
         onSelect={(value) => {
           onPatch(filter.id, { value });
           onDone();
@@ -263,12 +215,12 @@ function AudienceFilterValueSelect({
   onChange,
   onLoadMore,
 }: Readonly<{
-    value: string;
-    values: { value: string; count: number }[];
-    loading: boolean;
-    hasMore: boolean;
-    onChange: (value: string) => void;
-    onLoadMore: () => void;
+  value: string;
+  values: FilterValueItem[];
+  loading: boolean;
+  hasMore: boolean;
+  onChange: (value: string) => void;
+  onLoadMore: () => void;
 }>) {
   return (
     <Select value={value} onValueChange={onChange}>
@@ -282,7 +234,7 @@ function AudienceFilterValueSelect({
           </SelectItem>
         ))}
         {hasMore && (
-          <button type="button" onMouseDown={(event) => event.preventDefault()} onClick={onLoadMore} disabled={loading} className="w-full px-[9px] py-[7px] text-left font-mono text-[11px] text-[#8E8E9A] hover:text-[#CBCBD4] disabled:opacity-50">
+          <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={onLoadMore} disabled={loading} className="w-full px-[9px] py-[7px] text-left font-mono text-[11px] text-[#8E8E9A] hover:text-[#CBCBD4] disabled:opacity-50">
             {loading ? "Loading..." : "Show 3 more"}
           </button>
         )}
@@ -298,11 +250,11 @@ function AudienceFilterValuePills({
   onLoadMore,
   onSelect,
 }: Readonly<{
-    values: { value: string; count: number }[];
-    hasMore: boolean;
-    loading: boolean;
-    onLoadMore: () => Promise<void>;
-    onSelect: (value: string) => void;
+  values: FilterValueItem[];
+  hasMore: boolean;
+  loading: boolean;
+  onLoadMore: () => Promise<unknown>;
+  onSelect: (value: string) => void;
 }>) {
   const [visibleCount, setVisibleCount] = useState(3);
 
@@ -321,7 +273,7 @@ function AudienceFilterValuePills({
   return (
     <div className="flex flex-wrap gap-1.5">
       {visibleValues.map((item) => (
-        <button type="button" key={item.value} onClick={() => onSelect(item.value)} className={`inline-flex items-center gap-1 rounded-[5px] border border-white/[0.08] px-2 py-1 font-mono text-[11px] ${audiencePillClass(item.value, values.map((value) => value.value))} hover:border-white/[0.2]`}>
+        <button type="button" key={item.value} onClick={() => onSelect(item.value)} className={`inline-flex items-center gap-1 rounded-[5px] border border-white/[0.08] px-2 py-1 font-mono text-[11px] ${audiencePillClass(item.value, values.map((v) => v.value))} hover:border-white/[0.2]`}>
           {item.value}<span className="text-[#5C5C66]">{item.count}</span>
         </button>
       ))}

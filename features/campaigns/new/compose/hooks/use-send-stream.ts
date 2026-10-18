@@ -1,9 +1,11 @@
 "use client";
 
 import {useState} from "react";
+import {useQueryClient} from "@tanstack/react-query";
 import {useRouter} from "next/navigation";
 import {toast} from "sonner";
-import {confirmCampaign} from "@/features/campaigns/api/campaigns";
+import {confirmCampaign, getGetCampaignQueryKey, getListCampaignsQueryKey} from "@/lib/api/generated/campaigns/campaigns";
+import {getGetMetricsQueryKey} from "@/lib/api/generated/me/me";
 import {updateSessionDraft} from "@/features/campaigns/shared/session-drafts";
 import {setLiveStatus} from "@/features/campaigns/shared/live-status";
 import type {SendContext} from "@/features/campaigns/new/compose/ui/compose-step";
@@ -19,6 +21,7 @@ export interface SendStream {
 }
 
 export function useSendStream({ campaignId, recipientCount }: UseSendStreamOptions): SendStream {
+  const queryClient = useQueryClient();
   const router = useRouter();
   const [sending, setSending] = useState(false);
 
@@ -27,7 +30,10 @@ export function useSendStream({ campaignId, recipientCount }: UseSendStreamOptio
     setSending(true);
     try {
       await saveNow();
-      await confirmCampaign(campaignId, recipientCount);
+      await confirmCampaign(campaignId);
+      void queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey() });
+      void queryClient.invalidateQueries({ queryKey: getGetCampaignQueryKey(campaignId) });
+      void queryClient.invalidateQueries({ queryKey: getGetMetricsQueryKey() });
       setLiveStatus(
         {
           id: campaignId,

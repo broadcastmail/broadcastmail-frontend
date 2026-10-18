@@ -11,7 +11,7 @@ import {ChangeProjectDialog} from "./change-project-dialog";
 import {EditTableAccessDialog} from "./edit-table-access-dialog";
 import {EditColumnsDialog} from "./edit-columns-dialog";
 import {navigateToBackendRedirect} from "@/lib/api/oauth-redirect";
-import {getReconnectSchema, listReconnectProjects} from "@/lib/api/schema";
+import {detectSchemaForReconnect, listProjects1} from "@/lib/api/generated/connections/connections";
 import type {ConnectionProject} from "@/lib/types/connection";
 import type {SchemaIntrospectionResult} from "@/lib/types/onboarding";
 
@@ -57,7 +57,7 @@ export function SupabaseSection({
   async function handleChangeProjectClick() {
     setChangeProjectLoading(true);
     try {
-      setChangeProjectList(await listReconnectProjects());
+      setChangeProjectList((await listProjects1()) as unknown as ConnectionProject[]);
       setChangeProjectOpen(true);
     } catch {
       toast.error("Couldn't load projects — try again.");
@@ -69,7 +69,7 @@ export function SupabaseSection({
   async function handleTableAccessClick() {
     setTableAccessLoading(true);
     try {
-      setTableAccessSchema(await getReconnectSchema());
+      setTableAccessSchema((await detectSchemaForReconnect().catch(() => null)) as unknown as SchemaIntrospectionResult | null);
       setTableAccessOpen(true);
     } finally {
       setTableAccessLoading(false);

@@ -1,14 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { connectEmailProvider } from "@/lib/api/email-provider";
-import {
-  emailProviderSchema,
-  type EmailProviderFormValues,
-} from "@/lib/schemas/onboarding";
-import { Spinner } from "@/components/onboarding/spinner";
+import {useState} from "react";
+import {useForm, useWatch} from "react-hook-form";
+import {zodResolver} from "@hookform/resolvers/zod";
+import {addEmailProvider} from "@/lib/api/generated/onboarding/onboarding";
+import {type EmailProviderFormValues, emailProviderSchema,} from "@/lib/schemas/onboarding";
+import {Spinner} from "@/components/onboarding/spinner";
 
 type KeyState = "idle" | "testing" | "verified";
 
@@ -21,7 +18,7 @@ interface EmailProviderConnectFormProps {
 export function EmailProviderConnectForm({
   heading,
   onConnected,
-}: EmailProviderConnectFormProps) {
+}: Readonly<EmailProviderConnectFormProps>) {
   const [state, setState] = useState<KeyState>("idle");
   const [error, setError] = useState<string | null>(null);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -43,7 +40,7 @@ export function EmailProviderConnectForm({
     setState("testing");
     setError(null);
     try {
-      await connectEmailProvider(values);
+      await addEmailProvider({ apiKey: values.apiKey, fromAddress: values.fromAddress });
       setState("verified");
       onConnected(values);
     } catch {
@@ -137,7 +134,7 @@ export function EmailProviderConnectForm({
         )}
         {state === "verified" && (
           <p className="text-[12.5px] text-[#4ADE80]">
-            Test email delivered
+            <span className="font-medium">Test email delivered</span>
             <span className="text-[#8E8E9A]"> — check {fromAddress}</span>
           </p>
         )}

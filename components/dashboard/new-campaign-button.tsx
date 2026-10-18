@@ -1,9 +1,10 @@
 "use client";
 
-import {useState} from "react";
 import {useRouter} from "next/navigation";
 import {toast} from "sonner";
-import {createCampaign} from "@/features/campaigns/api/campaigns";
+import {useQueryClient} from "@tanstack/react-query";
+import {getListCampaignsQueryKey, useCreateCampaign} from "@/lib/api/generated/campaigns/campaigns";
+import type {Campaign} from "@/lib/types/campaigns";
 import {addSessionDraft} from "@/features/campaigns/shared/session-drafts";
 import {Tooltip, TooltipContent, TooltipTrigger,} from "@/components/ui/tooltip";
 import {cn} from "@/lib/utils";
@@ -14,23 +15,22 @@ interface NewCampaignButtonProps {
 
 export function NewCampaignButton({ configured }: Readonly<NewCampaignButtonProps>) {
   const router = useRouter();
-  const [creating, setCreating] = useState(false);
+  const queryClient = useQueryClient();
 
-  async function handleClick() {
+  const { mutate, isPending: creating } = useCreateCampaign({
+    mutation: {
+      onSuccess: (campaign) => {
+        addSessionDraft(campaign as unknown as Campaign);
+        router.push(`/dashboard/campaigns/${campaign.id ?? ''}`);
+      },
+      onError: () => toast.error("Couldn't create campaign — try again."),
+      onSettled: () => queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey() }),
+    },
+  });
+
+  function handleClick() {
     if (creating || !configured) return;
-    setCreating(true);
-    try {
-      const campaign = await createCampaign({
-        name: "Untitled campaign",
-        subject: "",
-        bodyHtml: "",
-      });
-      addSessionDraft(campaign);
-      router.push(`/dashboard/campaigns/${campaign.id}`);
-    } catch {
-      toast.error("Couldn't create campaign — try again.");
-      setCreating(false);
-    }
+    mutate({ data: { name: "Untitled campaign", subject: "", bodyHtml: "" } });
   }
 
   const disabled = creating || !configured;

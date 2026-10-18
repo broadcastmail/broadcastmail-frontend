@@ -3,7 +3,7 @@
 import {useLayoutEffect, useRef, useState} from "react";
 import {useAudienceFilterEditor} from "./use-audience-filter-editor";
 import {useAudienceTable} from "./use-audience-table";
-import {updateCampaign} from "@/features/campaigns/api/campaigns";
+import {updateCampaign} from "@/lib/api/generated/campaigns/campaigns";
 import type {AudienceMode} from "@/lib/types/campaigns";
 import type {CampaignData} from "@/features/campaigns/new/new-campaign-form";
 
@@ -61,7 +61,7 @@ export function useAudienceStepMediator(data: CampaignData, onConfirm: (count: n
         filters: filterEditor.filterPayloads,
       });
       selection.commitAudience();
-      setLastConfirmedMode(updated.audienceMode);
+      setLastConfirmedMode(updated.audienceMode?.toLowerCase() as AudienceMode ?? null);
       onConfirm(selection.selectedCount);
     });
   }

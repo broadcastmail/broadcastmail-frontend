@@ -3,9 +3,10 @@
 import {usePathname, useRouter} from "next/navigation";
 import {ChevronDown, CreditCard, LogOut, Mail, Settings} from "lucide-react";
 import {NavItem} from "./nav-item";
-import {logout} from "@/lib/api/auth";
+import {useLogout} from "@/lib/api/generated/auth/auth";
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,} from "../ui/dropdown-menu";
 import {useState} from "react";
+import {useQueryClient} from "@tanstack/react-query";
 import {usePlan} from "@/lib/subscription/plan-context";
 import {PLAN_LABEL} from "@/lib/subscription/plans";
 
@@ -19,7 +20,7 @@ interface TopNavProps {
   email: string;
   connectionName: string | null;
 }
-export function TopNav({ email, connectionName }: TopNavProps) {
+export function TopNav({ email, connectionName }: Readonly<TopNavProps>) {
   const pathname = usePathname();
 
   return (
@@ -69,24 +70,31 @@ export function TopNav({ email, connectionName }: TopNavProps) {
             {connectionName || "Unnamed Project"}
           </span>
         </div>
-        <div className="w-px h-[18px] bg-white/[0.08]" role="separator" />
+        <hr className="w-px h-[18px] bg-white/[0.08]" />
         <UserMenu email={email} />
       </div>
     </header>
   );
 }
 
-function UserMenu({ email }: { email: string }) {
+function UserMenu({ email }: Readonly<{ email: string }>) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const plan = usePlan();
   const [open, setOpen] = useState(false);
   const initial = email.charAt(0).toUpperCase();
 
-  async function handleLogout() {
-    await logout();
-    // Leaving "/dashboard" entirely — its layout would just redirect back
-    // to "/" anyway once the session cookie is gone, so go there directly.
-    router.push("/");
+  const { mutate: doLogout } = useLogout({
+    mutation: {
+      onSettled: () => {
+        queryClient.clear();
+        router.push("/");
+      },
+    },
+  });
+
+  function handleLogout() {
+    doLogout();
   }
 
   return (
