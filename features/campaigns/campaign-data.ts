@@ -1,9 +1,9 @@
 import {createServerApiClient} from "@/lib/api/client/server-client";
-import {getAccountEmailProvider, getReconnectSchema} from "@/lib/api/account";
 import type {Campaign} from "@/lib/types/campaigns";
 import type {AudienceColumn} from "@/features/campaigns/new/audience/audience";
 import type {SchemaIntrospectionResult} from "@/lib/types/onboarding";
-import type {AudienceListResponse} from "@/features/campaigns/api/audience";
+import type {AudienceListResponse} from "@/lib/api/generated/openAPIDefinition.schemas";
+import type {AccountEmailProviderInfo} from "@/mocks/fixtures";
 
 export interface ComposerData {
   campaign: Campaign;
@@ -51,13 +51,10 @@ export async function getComposerData(campaign: Campaign): Promise<ComposerData>
   );
 
   const [schema, emailProvider, initialAudienceRes] = await Promise.all([
-    getReconnectSchema(),
-    getAccountEmailProvider(),
-    serverApiClient.get<AudienceListResponse>("/api/v1/audience/list", {
-      params: {
-        limit: 50,
-        filters: JSON.stringify(savedFilterPayloads),
-      },
+    serverApiClient.get<SchemaIntrospectionResult>("/api/v1/connections/schema/reconnect").then((r) => r.data).catch(() => null),
+    serverApiClient.get<AccountEmailProviderInfo>("/api/v1/account/email-provider").then((r) => r.data).catch(() => null),
+    serverApiClient.post<AudienceListResponse>("/api/v1/campaigns/audience/list", savedFilterPayloads, {
+      params: { limit: 50 },
     }),
   ]);
 

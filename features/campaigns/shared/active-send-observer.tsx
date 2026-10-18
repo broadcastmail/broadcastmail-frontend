@@ -3,7 +3,7 @@
 import {useEffect, useRef, useSyncExternalStore} from "react";
 import type {CampaignStatusEvent} from "@/lib/types/campaigns";
 import {TERMINAL_CAMPAIGN_STATUSES} from "@/lib/types/campaigns";
-import {retryCampaign, retryFailedRecipients} from "@/features/campaigns/api/campaigns";
+import {retryCampaign, retryFailed} from "@/lib/api/generated/campaigns/campaigns";
 import type {LiveEntry} from "./live-status";
 import {clearLiveStatus, getLiveStatus, setLiveStatus, subscribeLiveStatus} from "./live-status";
 import {useRetryAction} from "./use-retry-action";
@@ -54,7 +54,7 @@ export function ActiveSendObserver() {
 
   function handleRetry(entry: LiveEntry) {
     const { id, status, recipientsCount, failedCount } = entry.event;
-    const apiFn = status === "FAILED" ? () => retryCampaign(id) : () => retryFailedRecipients(id);
+    const apiFn = status === "FAILED" ? () => retryCampaign(id) : () => retryFailed(id);
     void retry(id, apiFn, {
       recipientsCount: status === "FAILED" ? recipientsCount : failedCount,
       campaignName: entry.name,

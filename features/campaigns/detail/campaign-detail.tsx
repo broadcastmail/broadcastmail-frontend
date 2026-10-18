@@ -2,7 +2,8 @@
 
 import {useMemo, useState} from "react";
 import type {Campaign, CampaignStatusEvent} from "@/lib/types/campaigns";
-import {retryCampaign, retryFailedRecipients,} from "@/features/campaigns/api/campaigns";
+import {retryCampaign, retryFailed, useGetCampaign} from "@/lib/api/generated/campaigns/campaigns";
+import type {CampaignResponse} from "@/lib/api/generated/openAPIDefinition.schemas";
 import {useCampaignStatusStream} from "@/features/campaigns/shared/use-campaign-status-stream";
 import {useRetryAction} from "@/features/campaigns/shared/use-retry-action";
 import {wrapEmailShell} from "@/features/campaigns/new/compose/lib/email-html";
@@ -33,7 +34,34 @@ interface CampaignDetailProps {
 
 export function CampaignDetail({ initialCampaign, resendConfigured }: Readonly<CampaignDetailProps>) {
   const campaignId = initialCampaign.id;
-  const [baseCampaign] = useState<Campaign>(initialCampaign);
+
+  const { data: baseCampaign = initialCampaign } = useGetCampaign(campaignId, {
+    query: {
+      staleTime: 10_000,
+      initialData: initialCampaign as unknown as CampaignResponse,
+      select: (data): Campaign => ({
+        id: data.id,
+        name: data.name,
+        subject: data.subject,
+        status: data.status as Campaign["status"],
+        bodyHtml: data.bodyHtml ?? null,
+        retryOfCampaignId: data.retryOfCampaignId ?? null,
+        recipientCount: data.recipientCount ?? null,
+        sentCount: data.sentCount,
+        deliveredCount: data.deliveredCount,
+        openedCount: data.openedCount,
+        bouncedCount: data.bouncedCount,
+        failedCount: data.failedCount,
+        sentAt: data.sentAt ?? null,
+        createdAt: data.createdAt,
+        filters: data.filters as Campaign["filters"],
+        audienceMode: data.audienceMode as unknown as Campaign["audienceMode"],
+        includedIds: data.includedIds ?? null,
+        excludedIds: data.excludedIds ?? null,
+      }),
+    },
+  });
+
   const [previewOpen, setPreviewOpen] = useState(false);
   const { retry, isRetrying, retryError, isConflict } = useRetryAction();
 
@@ -51,7 +79,7 @@ export function CampaignDetail({ initialCampaign, resendConfigured }: Readonly<C
 
   const handleRetryFailed = () => {
     if (!resendConfigured) return;
-    void retry(campaignId, () => retryFailedRecipients(campaignId), { recipientsCount: campaign.failedCount ?? null, campaignName: campaign.name ?? "" });
+    void retry(campaignId, () => retryFailed(campaignId), { recipientsCount: campaign.failedCount ?? null, campaignName: campaign.name ?? "" });
   };
 
   const previewDoc = useMemo(() => wrapEmailShell(campaign.bodyHtml ?? ""), [campaign]);

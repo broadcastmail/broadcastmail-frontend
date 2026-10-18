@@ -2,7 +2,7 @@
 
 import {useAudienceList} from "./use-audience-list";
 import {useAudienceSelection} from "./use-audience-selection";
-import type {AudienceListResponse} from "@/features/campaigns/api/audience";
+import type {AudienceListResponse} from "@/lib/api/generated/openAPIDefinition.schemas";
 import type {AudienceFilterPayload} from "@/features/campaigns/new/audience/audience";
 import type {AudienceMode} from "@/lib/types/campaigns";
 

@@ -3,25 +3,15 @@ import {CampaignSection} from "./campaign-section";
 import {NewCampaignButton} from "@/components/dashboard/new-campaign-button";
 import {ConnectRequiredEmptyState} from "@/components/dashboard/connect-required-empty-state";
 import {createServerApiClient} from "@/lib/api/client/server-client";
-import {getAccountMetrics, getReconnectSchema} from "@/lib/api/account";
-import type {Campaign} from "@/lib/types/campaigns";
-
-async function getCampaigns(): Promise<Campaign[]> {
-    try {
-        const serverApiClient = await createServerApiClient();
-        const res = await serverApiClient.get("/api/v1/campaigns");
-        return res.data.content ?? [];
-    } catch {
-        return [];
-    }
-}
+import type {SchemaIntrospectionResult} from "@/lib/types/onboarding";
 
 export async function DashboardContent() {
-    const [metrics, campaigns, schema] = await Promise.all([
-        getAccountMetrics(),
-        getCampaigns(),
-        getReconnectSchema(),
-    ]);
+    let schema: SchemaIntrospectionResult | null = null;
+    try {
+        const serverApiClient = await createServerApiClient();
+        const res = await serverApiClient.get<SchemaIntrospectionResult>("/api/v1/connections/schema/reconnect");
+        schema = res.data;
+    } catch { /* ignore */ }
 
     const configured = schema?.status === "DETECTED";
 
@@ -40,17 +30,8 @@ export async function DashboardContent() {
             </header>
             {configured ? (
                 <>
-                    {metrics && (
-                        <DashboardHero
-                            audience={metrics.audience}
-                            audienceSource={metrics.audienceSource}
-                            totalDeliveredThisMonth={metrics.totalDeliveredThisMonth}
-                            deliveryRate={metrics.deliveryRate}
-                            recipientsUsedThisPeriod={metrics.recipientsUsedThisPeriod}
-                            recipientsLimit={metrics.recipientsLimit}
-                        />
-                    )}
-                    <CampaignSection campaigns={campaigns}/>
+                    <DashboardHero />
+                    <CampaignSection />
                 </>
             ) : (
                 <ConnectRequiredEmptyState/>

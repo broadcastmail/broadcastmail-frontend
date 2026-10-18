@@ -1,10 +1,11 @@
 "use client";
 
 import {useState} from "react";
+import {isAxiosError} from "axios";
+import {useQueryClient} from "@tanstack/react-query";
 import {Campaign} from "@/lib/types/campaigns";
 import {AlertDialog, AlertDialogContent, AlertDialogFooter,} from "@/components/ui/alert-dialog";
-import {isAxiosError} from "axios";
-import {apiClient} from "@/lib/api/client/client";
+import {getListCampaignsQueryKey, useDeleteCampaign} from "@/lib/api/generated/campaigns/campaigns";
 import {removeSessionDraft} from "@/features/campaigns/shared/session-drafts";
 
 interface DeleteCampaignDialogProps {
@@ -28,31 +29,28 @@ export function DeleteCampaignDialog({
   campaign,
   onDeleted,
 }: Readonly<DeleteCampaignDialogProps>) {
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+
+  const { mutate: doDelete, isPending: loading } = useDeleteCampaign({
+    mutation: {
+      onSuccess: () => {
+        removeSessionDraft(campaign.id);
+        onOpenChange(false);
+        onDeleted();
+      },
+      onError: (err) => setError(
+        isAxiosError(err) && err.response?.status === 403
+          ? "This campaign isn't a draft anymore, so it can't be deleted."
+          : "Couldn't delete this campaign. Try again in a moment.",
+      ),
+      onSettled: () => queryClient.invalidateQueries({ queryKey: getListCampaignsQueryKey() }),
+    },
+  });
 
   function handleOpenChange(value: boolean) {
     if (loading) return;
     onOpenChange(value);
-  }
-
-  async function handleDelete() {
-    setLoading(true);
-    setError(null);
-    try {
-      await apiClient.delete(`/api/v1/campaigns/${campaign.id}`);
-      removeSessionDraft(campaign.id);
-      onOpenChange(false);
-      onDeleted();
-    } catch (err) {
-      setError(
-        isAxiosError(err) && err.response?.status === 403
-          ? "This campaign isn't a draft anymore, so it can't be deleted."
-          : "Couldn't delete this campaign. Try again in a moment.",
-      );
-    } finally {
-      setLoading(false);
-    }
   }
 
   return (
@@ -86,7 +84,7 @@ export function DeleteCampaignDialog({
             Cancel
           </button>
           <button
-            onClick={handleDelete}
+            onClick={() => doDelete({ id: campaign.id })}
             disabled={loading}
             className="flex items-center justify-center gap-1.75 bg-status-failed text-[#1A0B0A] text-[13px] font-semibold rounded-lg px-4 py-2 hover:bg-[#F0857D] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
           >

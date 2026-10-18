@@ -1,10 +1,12 @@
 "use client";
 
-import {Suspense, use, useDeferredValue, useState} from "react";
+import {Suspense, useDeferredValue, useState} from "react";
+import {useSuspenseQuery} from "@tanstack/react-query";
 import {format} from "date-fns";
 import {Check} from "lucide-react";
-import {getCampaignRecipients} from "@/features/campaigns/api/campaigns";
-import type {Campaign, CampaignRecipient, RecipientStatus} from "@/lib/types/campaigns";
+import {getRecipients} from "@/lib/api/generated/campaigns/campaigns";
+import type {RecipientResponse} from "@/lib/api/generated/openAPIDefinition.schemas";
+import type {Campaign, RecipientStatus} from "@/lib/types/campaigns";
 import {Spinner} from "@/components/onboarding/spinner";
 import {cn} from "@/lib/utils";
 
@@ -33,30 +35,6 @@ const STATUS_DISPLAY: Record<
   UNSUBSCRIBED: { label: "Unsubscribed", className: "text-text-dim" },
 };
 
-const recipientsPromises = new Map<
-  string,
-  ReturnType<typeof getCampaignRecipients>
->();
-
-function getRecipientsCached(
-  cacheKey: string,
-  campaignId: string,
-  tab: TabId,
-  page: number,
-) {
-  let promise = recipientsPromises.get(cacheKey);
-  if (!promise) {
-    promise = getCampaignRecipients(campaignId, {
-      status: tab === "ALL" ? undefined : tab,
-      page,
-      size: PAGE_SIZE,
-    });
-    recipientsPromises.set(cacheKey, promise);
-    // Don't cache a failure — let the next render's use() retry the fetch.
-    promise.catch(() => recipientsPromises.delete(cacheKey));
-  }
-  return promise;
-}
 
 interface RecipientTableProps {
   campaignId: string;
@@ -160,8 +138,6 @@ interface RecipientRowsProps {
   onPageChange: (page: number) => void;
 }
 
-// No remount here — a stable instance reading from the module-level cache
-// above is what makes use() safe against re-renders (and Fast Refresh).
 function RecipientRows({
   cacheKey,
   campaignId,
@@ -169,14 +145,22 @@ function RecipientRows({
   page,
   onPageChange,
 }: Readonly<RecipientRowsProps>) {
-  const { content: rows, totalPages } = use(
-    getRecipientsCached(cacheKey, campaignId, tab, page),
-  );
+  const { data: result } = useSuspenseQuery({
+    queryKey: ["recipients", cacheKey],
+    queryFn: ({ signal }) =>
+      getRecipients(campaignId, {
+        status: tab === "ALL" ? undefined : tab,
+        pageable: { page, size: PAGE_SIZE },
+      }, signal),
+    staleTime: Infinity,
+  });
+  const rows = result.content ?? [];
+  const totalPages = result.totalPages ?? 1;
 
   return (
     <>
-      {rows.map((r: CampaignRecipient) => {
-        const display = STATUS_DISPLAY[r.status];
+      {rows.map((r: RecipientResponse) => {
+        const display = STATUS_DISPLAY[(r.status as RecipientStatus) ?? "SENT"];
         return (
           <div
             key={r.id}

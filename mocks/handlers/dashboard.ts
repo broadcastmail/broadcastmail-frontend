@@ -1,9 +1,9 @@
-import { http, HttpResponse } from "msw";
-import { fakeDashboard } from "../fixtures";
-import { ONBOARDING_RESEND_COOKIE, getCookie } from "../session";
+import {http, HttpResponse} from "msw";
+import {fakeDashboard} from "../fixtures";
+import {getCookie, ONBOARDING_RESEND_COOKIE} from "../session";
 
 export const dashboardHandlers = [
-  http.get("*/api/v1/account/metrics", () => {
+  http.get("*/api/v1/me/metrics", () => {
     return HttpResponse.json(fakeDashboard());
   }),
 

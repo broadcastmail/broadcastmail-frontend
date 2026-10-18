@@ -1,5 +1,6 @@
 import {getCampaign, getComposerData} from "@/features/campaigns/campaign-data";
-import {getAccountEmailProvider} from "@/lib/api/account";
+import {createServerApiClient} from "@/lib/api/client/server-client";
+import type {AccountEmailProviderInfo} from "@/mocks/fixtures";
 import {NewCampaignForm} from "./new/new-campaign-form";
 import {CampaignDetail} from "./detail/campaign-detail";
 
@@ -11,7 +12,8 @@ export async function CampaignRouter({ campaignId }: Readonly<CampaignRouterProp
   const campaign = await getCampaign(campaignId);
 
   if (campaign.status !== "DRAFT") {
-    const emailProvider = await getAccountEmailProvider();
+    const serverApiClient = await createServerApiClient();
+    const emailProvider = await serverApiClient.get<AccountEmailProviderInfo>("/api/v1/account/email-provider").then((r) => r.data).catch(() => null);
     return <CampaignDetail initialCampaign={campaign} resendConfigured={!!emailProvider?.fromAddress} />;
   }
 
@@ -22,7 +24,7 @@ export async function CampaignRouter({ campaignId }: Readonly<CampaignRouterProp
         campaign: composerData.campaign,
         audienceColumns: composerData.audienceColumns,
         initialFilters: composerData.campaign.filters,
-        initialRecipientCount: composerData.initialAudience.total,
+        initialRecipientCount: composerData.initialAudience.total ?? 0,
         initialAudience: composerData.initialAudience,
       }}
       resendConfigured={composerData.resendConfigured}

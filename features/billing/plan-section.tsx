@@ -5,20 +5,21 @@ import {SectionCard} from "@/components/layout/section-card";
 import {FieldRow} from "@/components/layout/field-row";
 import {Spinner} from "@/components/onboarding/spinner";
 import {isProPlan, PLAN_FEATURES, PLAN_LABEL, PLAN_PRICE} from "@/lib/subscription/plans";
-import {startBillingPortal, startCheckout} from "@/features/billing/api/billing-client";
+import {createCheckoutSession, createPortalSession, useGetSubscription} from "@/lib/api/generated/billing/billing";
 import {usePlan} from "@/lib/subscription/plan-context";
 import {useCheckoutRedirect} from "@/lib/subscription/use-checkout-redirect";
 
-interface PlanSectionProps {
-  currentPeriodEnd: string | null;
-  cancelAtPeriodEnd: boolean;
-}
-
-export function PlanSection({ currentPeriodEnd, cancelAtPeriodEnd }: Readonly<PlanSectionProps>) {
+export function PlanSection() {
   const plan = usePlan();
   const isPro = isProPlan(plan);
   const price = PLAN_PRICE[plan];
   const { redirecting, redirect } = useCheckoutRedirect();
+
+  const { data: subscription } = useGetSubscription({
+    query: { staleTime: 5 * 60_000 },
+  });
+  const currentPeriodEnd = subscription?.currentPeriodEnd ?? null;
+  const cancelAtPeriodEnd = subscription?.cancelAtPeriodEnd ?? false;
 
   const periodEndDate = currentPeriodEnd
     ? new Date(currentPeriodEnd).toLocaleDateString("en-US", {
@@ -30,7 +31,9 @@ export function PlanSection({ currentPeriodEnd, cancelAtPeriodEnd }: Readonly<Pl
 
   function handleClick() {
     redirect(
-      isPro ? startBillingPortal : startCheckout,
+      isPro
+        ? async () => { window.location.href = (await createPortalSession())['url']; }
+        : async () => { window.location.href = (await createCheckoutSession())['url']; },
       isPro
         ? "Couldn't open subscription management — try again."
         : "Couldn't start checkout — try again.",

@@ -2,28 +2,32 @@
 
 import {SectionCard} from "@/components/layout/section-card";
 import {MetricCard} from "@/components/dashboard/metric-card";
-import {startCheckout} from "@/features/billing/api/billing-client";
+import {createCheckoutSession} from "@/lib/api/generated/billing/billing";
+import {useGetMetrics} from "@/lib/api/generated/me/me";
 import {isProPlan} from "@/lib/subscription/plans";
 import {usePlan} from "@/lib/subscription/plan-context";
 import {useCheckoutRedirect} from "@/lib/subscription/use-checkout-redirect";
 
 interface UsageSectionProps {
-  recipientsUsed: number;
-  recipientsLimit: number;
   campaignCount: number;
 }
-export function UsageSection({
-  recipientsUsed,
-  recipientsLimit,
-  campaignCount,
-}: Readonly<UsageSectionProps>) {
+
+export function UsageSection({ campaignCount }: Readonly<UsageSectionProps>) {
   const isPro = isProPlan(usePlan());
-  const ratio = recipientsLimit > 0 ? recipientsUsed / recipientsLimit : 0;
-  const atLimit = !isPro && recipientsUsed >= recipientsLimit;
   const { redirecting, redirect } = useCheckoutRedirect();
 
+  const { data: metrics } = useGetMetrics({ query: { staleTime: 2 * 60_000 } });
+  const recipientsUsed = metrics?.recipientsUsedThisPeriod ?? 0;
+  const recipientsLimit = metrics?.recipientsLimit ?? 0;
+
+  const ratio = recipientsLimit > 0 ? recipientsUsed / recipientsLimit : 0;
+  const atLimit = !isPro && recipientsUsed >= recipientsLimit;
+
   function handleUpgradeClick() {
-    redirect(startCheckout, "Couldn't start checkout — try again.");
+    redirect(
+      async () => { window.location.href = (await createCheckoutSession())['url']; },
+      "Couldn't start checkout — try again.",
+    );
   }
 
   return (

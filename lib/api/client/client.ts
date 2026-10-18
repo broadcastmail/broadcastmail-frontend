@@ -1,9 +1,14 @@
-import axios from "axios";
+import axios, {type AxiosRequestConfig} from "axios";
 
-export const apiClient = axios.create({
+const instance = axios.create({
   baseURL:
     typeof window === "undefined"
-      ? process.env.NEXT_PUBLIC_API_URL // server-side: use real URL
-      : "", // client-side: relative URLs for MSW
+      ? process.env.NEXT_PUBLIC_API_URL
+      : "",
   withCredentials: true,
 });
+
+export const apiClient = instance;
+
+export const orvalClient = <T>(config: AxiosRequestConfig): Promise<T> =>
+  instance(config).then((res) => res.data);

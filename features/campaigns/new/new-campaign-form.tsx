@@ -3,7 +3,8 @@
 import {useRef, useState} from "react";
 import type {Campaign} from "@/lib/types/campaigns";
 import type {AudienceColumn, CampaignFilterResponse} from "@/features/campaigns/new/audience/audience";
-import type {AudienceListResponse} from "@/features/campaigns/api/audience";
+import type {AudienceListResponse, CampaignResponse} from "@/lib/api/generated/openAPIDefinition.schemas";
+import {useGetCampaign} from "@/lib/api/generated/campaigns/campaigns";
 import {AudienceStep} from "./audience/ui/audience-step";
 import {ComposeStep} from "./compose/ui/compose-step";
 import {useSendStream} from "@/features/campaigns/new/compose/hooks/use-send-stream";
@@ -36,6 +37,15 @@ function resolveInitialRecipientCount(campaign: Campaign, initialRecipientCount:
 export function NewCampaignForm({ data, resendConfigured }: Readonly<NewCampaignFormProps>) {
   const { campaign, initialFilters, initialRecipientCount } = data;
   const plan = usePlan();
+
+  // Seed query cache so autosave's setQueryData stays coherent with a live query.
+  // staleTime: Infinity — autosave is the only update mechanism during the draft flow.
+  useGetCampaign(campaign.id, {
+    query: {
+      staleTime: Infinity,
+      initialData: campaign as unknown as CampaignResponse,
+    },
+  });
 
   const [step, setStep] = useState<"audience" | "compose">(
     campaign.audienceMode !== null ? "compose" : "audience",

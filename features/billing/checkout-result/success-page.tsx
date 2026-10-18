@@ -2,28 +2,55 @@
 
 import {useEffect, useRef, useState} from "react";
 import {useRouter} from "next/navigation";
+import {useQueryClient} from "@tanstack/react-query";
 import {Spinner} from "@/components/onboarding/spinner";
-import {pollForPro} from "@/features/billing/api/billing-client";
+import {getGetSubscriptionQueryKey, getSubscription} from "@/lib/api/generated/billing/billing";
+import {getGetMeQueryKey} from "@/lib/api/generated/me/me";
 
 type State = "polling" | "ready" | "timeout";
 
 export function SuccessPage() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [state, setState] = useState<State>("polling");
   const firedRef = useRef(false);
 
   function go() {
     if (firedRef.current) return;
     firedRef.current = true;
+    queryClient.invalidateQueries({ queryKey: getGetSubscriptionQueryKey() });
+    queryClient.invalidateQueries({ queryKey: getGetMeQueryKey() });
     router.refresh();
     router.push("/dashboard");
   }
 
+  const POLL_INTERVAL_MS = 1500;
+  const POLL_MAX_ATTEMPTS = 10;
+
   useEffect(() => {
+    async function pollForPro(): Promise<boolean> {
+      for (let i = 0; i < POLL_MAX_ATTEMPTS; i++) {
+        if (i > 0) await new Promise<void>((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+        try {
+          const data = await getSubscription();
+          if (data.currentPeriodEnd != null) return true;
+        } catch {
+          // keep polling
+        }
+      }
+      return false;
+    }
     pollForPro().then((activated) => {
       setState(activated ? "ready" : "timeout");
     });
   }, []);
+
+  const stateMessages: Record<State, string> = {
+    polling: "Confirming your payment…",
+    ready: "Filters, scheduling, and 90-day history are now unlocked.",
+    timeout: "This is taking longer than expected. You'll receive a confirmation email shortly.",
+  };
+  const stateMessage = stateMessages[state];
 
   return (
     <div className="min-h-screen flex items-center justify-center px-6 py-12">
@@ -42,13 +69,7 @@ export function SuccessPage() {
           <h1 className="text-[32px] font-semibold text-text-primary tracking-tight leading-[1.15]">
             {state === "polling" ? "Activating your account…" : "You're on Pro"}
           </h1>
-          <p className="text-sm leading-[1.55] text-text-muted text-pretty">
-            {state === "timeout"
-              ? "This is taking longer than expected. You'll receive a confirmation email shortly."
-              : state === "ready"
-              ? "Filters, scheduling, and 90-day history are now unlocked."
-              : "Confirming your payment…"}
-          </p>
+          <p className="text-sm leading-[1.55] text-text-muted text-pretty">{stateMessage}</p>
         </div>
 
         {state !== "polling" && (

@@ -1,11 +1,11 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { SchemaFlow } from "@/components/onboarding/schema/schema-flow";
-import { updateReconnectColumns } from "@/lib/api/schema";
-import type { SchemaIntrospectionResult } from "@/lib/types/onboarding";
+import {useRouter} from "next/navigation";
+import {toast} from "sonner";
+import {Dialog, DialogContent, DialogTitle} from "@/components/ui/dialog";
+import {SchemaFlow} from "@/components/onboarding/schema/schema-flow";
+import {updateColumns} from "@/lib/api/generated/connections/connections";
+import type {SchemaIntrospectionResult} from "@/lib/types/onboarding";
 
 interface EditColumnsDialogProps {
   open: boolean;
@@ -19,7 +19,7 @@ export function EditColumnsDialog({
   open,
   onOpenChange,
   schema,
-}: EditColumnsDialogProps) {
+}: Readonly<EditColumnsDialogProps>) {
   const router = useRouter();
 
   function handleComplete() {
@@ -35,7 +35,7 @@ export function EditColumnsDialog({
         <SchemaFlow
           schema={schema}
           onComplete={handleComplete}
-          onConfirm={updateReconnectColumns}
+          onConfirm={(columnNames) => updateColumns({ columnNames })}
           skipReview
         />
       </DialogContent>

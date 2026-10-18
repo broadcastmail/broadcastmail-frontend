@@ -3,7 +3,7 @@
 import {useState} from "react";
 import {useRouter} from "next/navigation";
 import {Spinner} from "@/components/onboarding/spinner";
-import {startCheckout} from "@/features/billing/api/billing-client";
+import {createCheckoutSession} from "@/lib/api/generated/billing/billing";
 
 export function CancelPage() {
   const router = useRouter();
@@ -15,7 +15,7 @@ export function CancelPage() {
     setChecking(true);
     setCheckoutError(false);
     try {
-      await startCheckout();
+      window.location.href = (await createCheckoutSession())['url'];
     } catch {
       setChecking(false);
       setCheckoutError(true);
