@@ -11,6 +11,8 @@ interface CampaignStatusStream {
 function createCampaignStatusStream(campaignId: string): CampaignStatusStream {
   let snapshot: CampaignStatusEvent | null = null;
   let source: EventSource | null = null;
+  let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  let done = false;
   const listeners = new Set<() => void>();
 
   function notify() {
@@ -18,7 +20,7 @@ function createCampaignStatusStream(campaignId: string): CampaignStatusStream {
   }
 
   function connect() {
-    if (source) return;
+    if (source || done) return;
     source = new EventSource(
       `/api/v1/campaigns/${campaignId}/status/stream`,
       { withCredentials: true },
@@ -28,6 +30,7 @@ function createCampaignStatusStream(campaignId: string): CampaignStatusStream {
       notify();
 
       if (snapshot && TERMINAL_CAMPAIGN_STATUSES.has(snapshot.status)) {
+        done = true;
         source?.close();
         source = null;
       }
@@ -36,6 +39,11 @@ function createCampaignStatusStream(campaignId: string): CampaignStatusStream {
     source.onerror = () => {
       source?.close();
       source = null;
+      // reconnect after 5 s unless the campaign reached a terminal state or
+      // there are no more subscribers
+      if (!done && listeners.size > 0) {
+        reconnectTimer = setTimeout(connect, 5000);
+      }
     };
   }
 
@@ -46,6 +54,10 @@ function createCampaignStatusStream(campaignId: string): CampaignStatusStream {
       return () => {
         listeners.delete(listener);
         if (listeners.size === 0) {
+          if (reconnectTimer !== null) {
+            clearTimeout(reconnectTimer);
+            reconnectTimer = null;
+          }
           source?.close();
           source = null;
         }

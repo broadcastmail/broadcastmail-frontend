@@ -1,9 +1,10 @@
 "use client";
 
-import {forwardRef, useEffect, useImperativeHandle, useState} from "react";
+import {forwardRef, useEffect, useImperativeHandle, useRef, useState} from "react";
 import {type Editor, EditorContent, getMarkRange, type JSONContent, useEditor,} from "@tiptap/react";
 import {cn} from "@/lib/utils";
 import {EMAIL_EDITOR_EXTENSIONS, EMPTY_DOC} from "@/features/campaigns/new/compose/lib/editor-extensions";
+import {createTemplateVariableExtension} from "@/features/campaigns/new/compose/lib/template-variable-extension";
 
 export interface RichTextSurfaceHandle {
   /** Insert HTML at the caret (or replace the current selection with it).
@@ -45,6 +46,7 @@ interface RichTextSurfaceProps {
   onImageClick?: (target: HTMLImageElement) => void;
   placeholder: string;
   className?: string;
+  validTemplateColumns?: Set<string>;
 }
 
 // Resolves the CTA button table (if `target` is inside one) or the plain
@@ -81,15 +83,21 @@ export const RichTextSurface = forwardRef<
     onImageClick,
     placeholder,
     className,
+    validTemplateColumns,
   },
   ref,
 ) {
   const [isEmpty, setIsEmpty] = useState(!initialHtml.trim());
+  // Updated during render so decorations() always reads the latest value on
+  // the next transaction — no effect or dispatch needed.
+  const validColumnsRef = useRef<Set<string>>(validTemplateColumns ?? new Set());
+  validColumnsRef.current = validTemplateColumns ?? new Set();
 
   const editor = useEditor({
     immediatelyRender: false,
     content: initialHtml,
-    extensions: EMAIL_EDITOR_EXTENSIONS,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    extensions: [...EMAIL_EDITOR_EXTENSIONS, createTemplateVariableExtension(() => validColumnsRef.current)],
     editorProps: {
       attributes: {
         role: "textbox",

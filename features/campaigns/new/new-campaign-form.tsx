@@ -97,6 +97,7 @@ export function NewCampaignForm({ data, resendConfigured }: Readonly<NewCampaign
           campaign={campaign}
           resendConfigured={resendConfigured}
           state={{ recipientCount: selectedRecipientCount ?? 0, canSend, sending: sendStream.sending }}
+          audienceColumns={data.audienceColumns}
           onBack={() => setStep("audience")}
           onSend={sendStream.send}
           onDirtyChange={(dirty) => { composeDirtyRef.current = dirty; }}
