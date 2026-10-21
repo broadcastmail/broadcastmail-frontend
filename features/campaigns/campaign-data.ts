@@ -20,22 +20,19 @@ export async function getCampaign(id: string): Promise<Campaign> {
 
 function buildAudienceColumns(schema: SchemaIntrospectionResult | null): AudienceColumn[] {
   if (schema?.status !== "DETECTED") return [];
+  const seen = new Set<string>();
   return [
     ...schema.filterableColumns
       .filter((c) => c.enabled)
-      .map((c) => ({
-        name: c.columnName,
-        type: c.columnType as AudienceColumn["type"],
-        source: "PROFILE_TABLE" as const,
-      })),
+      .map((c) => ({ name: c.columnName, type: c.columnType as AudienceColumn["type"], source: "PROFILE_TABLE" as const })),
     ...schema.authColumns
       .filter((c) => c.enabled)
-      .map((c) => ({
-        name: c.columnName,
-        type: c.columnType as AudienceColumn["type"],
-        source: "AUTH_METADATA" as const,
-      })),
-  ];
+      .map((c) => ({ name: c.columnName, type: c.columnType as AudienceColumn["type"], source: "AUTH_METADATA" as const })),
+  ].filter((c) => {
+    if (seen.has(c.name)) return false;
+    seen.add(c.name);
+    return true;
+  });
 }
 
 export async function getComposerData(campaign: Campaign): Promise<ComposerData> {

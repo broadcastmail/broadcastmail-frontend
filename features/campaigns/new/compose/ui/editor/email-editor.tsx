@@ -3,6 +3,8 @@
 import {useMemo, useRef, useState} from "react";
 import type {JSONContent} from "@tiptap/core";
 import {Bold, Eraser, ImageIcon, Italic, Link2, Minus, Underline as UnderlineIcon, Unlink,} from "lucide-react";
+import Link from "next/link";
+import type {AudienceColumn} from "@/features/campaigns/new/audience/audience";
 
 import {ContextMenu, ContextMenuContent, ContextMenuSeparator, ContextMenuTrigger,} from "@/components/ui/context-menu";
 import {QuickActionItem} from "./quick-action-item";
@@ -35,6 +37,7 @@ export interface EmailBody {
 interface EmailEditorProps {
   initialHtml: string;
   onChange: (body: EmailBody) => void;
+  audienceColumns?: AudienceColumn[];
 }
 
 interface LinkDialogState {
@@ -57,7 +60,11 @@ type ImageDialogState =
 // link/button/image no longer mutates the DOM directly (that would fight
 // TipTap's own re-render of the document) — it goes through the ref's
 // get/set/removeAt methods, which apply a ProseMirror transaction instead.
-export function EmailEditor({ initialHtml, onChange }: Readonly<EmailEditorProps>) {
+export function EmailEditor({ initialHtml, onChange, audienceColumns = [] }: Readonly<EmailEditorProps>) {
+  const validTemplateColumns = useMemo(
+    () => new Set(audienceColumns.map((c) => c.name)),
+    [audienceColumns],
+  );
   const surfaceRef = useRef<RichTextSurfaceHandle>(null);
   const [bodyHtml, setBodyHtml] = useState(initialHtml);
   const [tipsOpen, setTipsOpen] = useState(false);
@@ -81,6 +88,7 @@ export function EmailEditor({ initialHtml, onChange }: Readonly<EmailEditorProps
   const editingLinkRef = useRef<HTMLElement | null>(null);
   const editingImgRef = useRef<HTMLImageElement | null>(null);
 
+  const hasTemplateVars = useMemo(() => /\{\{[a-zA-Z_]\w*\}\}/.test(bodyHtml), [bodyHtml]);
   const warnings = useMemo(() => detectWarnings(bodyHtml), [bodyHtml]);
   const sizeBytes = useMemo(() => emailSizeBytes(bodyHtml), [bodyHtml]);
   const wordCount = useMemo(() => {
@@ -215,6 +223,31 @@ export function EmailEditor({ initialHtml, onChange }: Readonly<EmailEditorProps
       <div className="flex flex-col bg-[#101015] border border-[#26262F] rounded-lg overflow-hidden">
         <EditorToolbar snippets={EDITOR_SNIPPETS} onPick={handleSnippetPick} />
 
+        {hasTemplateVars && (
+          <div className="flex flex-col gap-1.5 px-[9px] pt-[7px] pb-[9px] border-b border-[#1E1E26]">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] text-[#5C5C66] shrink-0">Personalize:</span>
+              {audienceColumns.map((col) => (
+                <button
+                  key={col.name}
+                  type="button"
+                  title={`Insert {{${col.name}}}`}
+                  onClick={() => surfaceRef.current?.insertHtml(`{{${col.name}}}`)}
+                  className="text-[11px] font-mono px-[7px] py-[2px] rounded bg-[rgba(240,151,63,0.12)] text-orange hover:bg-[rgba(240,151,63,0.22)] transition-colors cursor-pointer"
+                >
+                  {`{{${col.name}}}`}
+                </button>
+              ))}
+            </div>
+            <p className="text-[11px] text-[#5C5C66]">
+              Variables pull from your filterable columns.{" "}
+              <Link href="/settings/reconfigure/schema" className="text-[#8A8A96] hover:text-[#B9B9C2] transition-colors">
+                Manage columns →
+              </Link>
+            </p>
+          </div>
+        )}
+
         <ContextMenu
           onOpenChange={(open) => {
             if (!open) setContextTarget(null);
@@ -229,6 +262,7 @@ export function EmailEditor({ initialHtml, onChange }: Readonly<EmailEditorProps
                 onContextMenuTarget={setContextTarget}
                 onImageClick={openEditImage}
                 placeholder="Write your email — or start with a block above."
+                validTemplateColumns={validTemplateColumns}
               />
             </div>
           </ContextMenuTrigger>

@@ -1,6 +1,7 @@
 "use client";
 
 import {type KeyboardEvent, useEffect, useMemo, useRef, useState} from "react";
+import type {AudienceColumn} from "@/features/campaigns/new/audience/audience";
 import {Pencil} from "lucide-react";
 import type {Campaign} from "@/lib/types/campaigns";
 import {SubjectField} from "./subject-field";
@@ -34,6 +35,7 @@ interface ComposeStepProps {
   campaign: Campaign;
   resendConfigured: boolean;
   state: ComposeState;
+  audienceColumns: AudienceColumn[];
   onBack: () => void;
   onSend: (ctx: SendContext) => void;
   onDirtyChange?: (dirty: boolean) => void;
@@ -48,6 +50,7 @@ export function ComposeStep({
   campaign,
   resendConfigured,
   state: { recipientCount, canSend, sending },
+  audienceColumns,
   onBack,
   onSend,
   onDirtyChange,
@@ -68,10 +71,14 @@ export function ComposeStep({
 
   useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
-  const previewHtml =
+  const rawPreviewHtml =
     draft.source === "visual" ? draft.visualBody.html : sanitizeHtmlSource(draft.importedHtml);
+  const previewHtml = rawPreviewHtml.replace(
+    /\{\{([a-zA-Z_]\w*)\}\}/g,
+    '<span style="background:rgba(240,151,63,0.15);color:#f0973f;border-radius:3px;padding:1px 4px;font-family:monospace;font-size:0.875em;">{{$1}}</span>',
+  );
   const previewDoc = useMemo(() => wrapEmailShell(previewHtml), [previewHtml]);
-  const ready = !!draft.name.trim() && !!draft.subject.trim() && !!previewHtml.trim();
+  const ready = !!draft.name.trim() && !!draft.subject.trim() && !!rawPreviewHtml.trim();
 
   const sendEnabled = canSend && ready && !dirty;
 
@@ -150,7 +157,7 @@ export function ComposeStep({
             ))}
           </div>
           {draft.source === "visual" ? (
-            <EmailEditor initialHtml={draft.visualBody.html} onChange={draft.setVisualBody} />
+            <EmailEditor initialHtml={draft.visualBody.html} onChange={draft.setVisualBody} audienceColumns={audienceColumns} />
           ) : (
             <HtmlImportEditor value={draft.importedHtml} onChange={draft.setImportedHtml} />
           )}

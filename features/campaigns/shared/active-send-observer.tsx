@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useRef, useSyncExternalStore} from "react";
+import {useEffect, useRef, useState, useSyncExternalStore} from "react";
 import type {CampaignStatusEvent} from "@/lib/types/campaigns";
 import {TERMINAL_CAMPAIGN_STATUSES} from "@/lib/types/campaigns";
 import {retryCampaign, retryFailed} from "@/lib/api/generated/campaigns/campaigns";
@@ -18,7 +18,9 @@ export function ActiveSendObserver() {
   );
 
   const esRef = useRef<EventSource | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hasOpenedRef = useRef(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     // On mount, open immediately (SSE closes itself if nothing is active).
@@ -26,6 +28,10 @@ export function ActiveSendObserver() {
     if (!hasOpenedRef.current) {
       hasOpenedRef.current = true;
     } else if (!hasActive) {
+      if (reconnectTimerRef.current !== null) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
       esRef.current?.close();
       esRef.current = null;
       return;
@@ -44,13 +50,22 @@ export function ActiveSendObserver() {
     es.onerror = () => {
       es.close();
       esRef.current = null;
+      reconnectTimerRef.current = setTimeout(() => {
+        reconnectTimerRef.current = null;
+        setRetryCount((c) => c + 1);
+      }, 5000);
     };
 
     return () => {
+      if (reconnectTimerRef.current !== null) {
+        clearTimeout(reconnectTimerRef.current);
+        reconnectTimerRef.current = null;
+      }
       es.close();
       esRef.current = null;
     };
-  }, [hasActive]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- retryCount intentionally triggers reconnect
+  }, [hasActive, retryCount]);
 
   function handleRetry(entry: LiveEntry) {
     const { id, status, recipientsCount, failedCount } = entry.event;
