@@ -18,6 +18,8 @@ import {useBeforeUnloadWarning} from "@/lib/navigation/use-before-unload-warning
 import {UNSAVED_CHANGES_MESSAGE} from "@/lib/navigation/unsaved-changes-guard";
 import {campaignNameSchema} from "@/lib/schemas/campaigns";
 import {cn} from "@/lib/utils";
+import {useSendTestEmail} from "@/lib/api/generated/campaigns/campaigns";
+import {toast} from "sonner";
 
 export interface SendContext {
   saveNow: () => Promise<void>;
@@ -93,6 +95,19 @@ export function ComposeStep({
     }
   }
 
+  const { mutate: sendTestEmail, isPending: sendingTest } = useSendTestEmail();
+
+  async function handleSendTest() {
+    await handleSave();
+    sendTestEmail(
+      { id: campaign.id, data: { variables: {} } },
+      {
+        onSuccess: () => toast.success("Test email sent to your inbox"),
+        onError: () => toast.error("Failed to send test email"),
+      },
+    );
+  }
+
   function handleBack() {
     if (dirty && !window.confirm(UNSAVED_CHANGES_MESSAGE)) return;
     onBack();
@@ -162,7 +177,7 @@ export function ComposeStep({
             <HtmlImportEditor value={draft.importedHtml} onChange={draft.setImportedHtml} />
           )}
         </div>
-        <PreviewPane previewDoc={previewDoc} subject={draft.subject} recipientCount={recipientCount} />
+        <PreviewPane previewDoc={previewDoc} subject={draft.subject} recipientCount={recipientCount} onSendTest={handleSendTest} sendingTest={sendingTest} />
       </div>
       {saveError && (
         <div className="shrink-0 px-6 py-2 text-[12.5px] text-[#E5726A] border-t border-white/[0.07]">

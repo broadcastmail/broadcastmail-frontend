@@ -1,7 +1,7 @@
 "use client";
 
 import {useState} from "react";
-import {Eye, Monitor, Smartphone} from "lucide-react";
+import {Eye, FlaskConical, Monitor, Smartphone} from "lucide-react";
 import {cn} from "@/lib/utils";
 
 type Device = "desktop" | "mobile";
@@ -10,9 +10,11 @@ interface PreviewPaneProps {
   previewDoc: string;
   subject: string;
   recipientCount: number;
+  onSendTest?: () => void;
+  sendingTest?: boolean;
 }
 
-export function PreviewPane({ previewDoc, subject, recipientCount }: Readonly<PreviewPaneProps>) {
+export function PreviewPane({ previewDoc, subject, recipientCount, onSendTest, sendingTest }: Readonly<PreviewPaneProps>) {
   const [device, setDevice] = useState<Device>("desktop");
   const mobile = device === "mobile";
 
@@ -23,29 +25,41 @@ export function PreviewPane({ previewDoc, subject, recipientCount }: Readonly<Pr
           <Eye size={13} strokeWidth={1.5} />
           Preview
         </div>
-        <div className="flex items-center gap-0.5 bg-[#101015] border border-[#1E1E26] rounded-[7px] p-0.5">
+        <div className="flex items-center gap-2">
           <button
             type="button"
-            aria-label="Desktop preview"
-            onClick={() => setDevice("desktop")}
-            className={cn(
-              "w-7 h-6 rounded-[5px] flex items-center justify-center cursor-pointer transition-colors",
-              !mobile && "bg-[#232329]",
-            )}
+            onClick={onSendTest}
+            disabled={sendingTest}
+            className="flex items-center gap-1.5 text-[11.5px] font-medium text-[#7A7A85] hover:text-[#ECECF1] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <Monitor size={14} className={!mobile ? "text-[#ECECF1]" : "text-[#5C5C66]"} strokeWidth={1.5} />
+            <FlaskConical size={13} strokeWidth={1.5} />
+            {sendingTest ? "Sending..." : "Send test"}
           </button>
-          <button
-            type="button"
-            aria-label="Mobile preview"
-            onClick={() => setDevice("mobile")}
-            className={cn(
-              "w-7 h-6 rounded-[5px] flex items-center justify-center cursor-pointer transition-colors",
-              mobile && "bg-[#232329]",
-            )}
-          >
-            <Smartphone size={14} className={mobile ? "text-[#ECECF1]" : "text-[#5C5C66]"} strokeWidth={1.5} />
-          </button>
+          <span className="w-px h-3.5 bg-white/[0.08]" />
+          <div className="flex items-center gap-0.5 bg-[#101015] border border-[#1E1E26] rounded-[7px] p-0.5">
+            <button
+              type="button"
+              aria-label="Desktop preview"
+              onClick={() => setDevice("desktop")}
+              className={cn(
+                "w-7 h-6 rounded-[5px] flex items-center justify-center cursor-pointer transition-colors",
+                !mobile && "bg-[#232329]",
+              )}
+            >
+              <Monitor size={14} className={!mobile ? "text-[#ECECF1]" : "text-[#5C5C66]"} strokeWidth={1.5} />
+            </button>
+            <button
+              type="button"
+              aria-label="Mobile preview"
+              onClick={() => setDevice("mobile")}
+              className={cn(
+                "w-7 h-6 rounded-[5px] flex items-center justify-center cursor-pointer transition-colors",
+                mobile && "bg-[#232329]",
+              )}
+            >
+              <Smartphone size={14} className={mobile ? "text-[#ECECF1]" : "text-[#5C5C66]"} strokeWidth={1.5} />
+            </button>
+          </div>
         </div>
       </div>
 

@@ -278,6 +278,7 @@ export const CampaignSummaryResponseStatus = {
 
 export interface CampaignSummaryResponse {
   id?: string;
+  retryOfCampaignId?: string;
   name?: string;
   status?: CampaignSummaryResponseStatus;
   recipientCount?: number;
@@ -374,6 +375,12 @@ export interface AudienceFilterValuesResponse {
 export interface SubscriptionResponse {
   currentPeriodEnd?: string;
   cancelAtPeriodEnd?: boolean;
+}
+
+export type TestEmailRequestVariables = {[key: string]: string};
+
+export interface TestEmailRequest {
+  variables?: TestEmailRequestVariables;
 }
 
 export type ListCampaignsParams = {

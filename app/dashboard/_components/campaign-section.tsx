@@ -16,7 +16,7 @@ function toDisplayCampaign(c: CampaignSummaryResponse): Campaign {
     subject: '',
     status: (c.status as CampaignStatus) ?? 'DRAFT',
     bodyHtml: null,
-    retryOfCampaignId: null,
+    retryOfCampaignId: c.retryOfCampaignId ?? null,
     recipientCount: c.recipientCount ?? null,
     sentCount: 0,
     deliveredCount: 0,
@@ -33,7 +33,7 @@ function toDisplayCampaign(c: CampaignSummaryResponse): Campaign {
 }
 
 export function CampaignSection() {
-  const { data } = useListCampaigns(
+  const { data, isPending } = useListCampaigns(
     { pageable: { size: 50, sort: ['createdAt,desc'] } },
     { query: { staleTime: 30_000 } },
   );
@@ -80,7 +80,7 @@ export function CampaignSection() {
         </div>
       </div>
       <div className="bg-[rgba(255,255,255,0.025)] border border-(--color-border) rounded-xl overflow-hidden">
-        {merged.length === 0 ? (
+        {merged.length === 0 && !isPending ? (
           <EmptyState />
         ) : (
           <CampaignTable campaigns={merged} />
