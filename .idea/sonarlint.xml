@@ -8,6 +8,8 @@
         <option value="FILE:lib/api/generated/me/me.ts" />
         <option value="FILE:lib/api/generated/oauth/oauth.ts" />
         <option value="FILE:lib/api/generated/onboarding/onboarding.ts" />
+        <option value="FILE:lib/api/generated/auth/auth.ts" />
+        <option value="FILE:lib/api/generated/billing/billing.ts" />
       </list>
     </option>
   </component>

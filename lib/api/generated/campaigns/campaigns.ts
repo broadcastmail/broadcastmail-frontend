@@ -34,6 +34,7 @@ import type {
     PageRecipientResponse,
     RecipientPreviewResponse,
     SseEmitter,
+    TestEmailRequest,
     UnsubscribeParams,
     UpdateCampaignRequest
 } from '../openAPIDefinition.schemas';
@@ -1210,3 +1211,65 @@ export function useListFilterValues<TData = Awaited<ReturnType<typeof listFilter
 
 
 
+export const sendTestEmail = (
+    id: string,
+    testEmailRequest: TestEmailRequest,
+ signal?: AbortSignal
+) => {
+
+
+      return orvalClient<void>(
+      {url: `/api/v1/campaigns/${id}/test/send`, method: 'POST',
+      headers: {'Content-Type': 'application/json', },
+      data: testEmailRequest, signal
+    },
+      );
+    }
+
+
+
+
+export const getSendTestEmailMutationKey = () => ['sendTestEmail'] as const;
+
+export const getSendTestEmailMutationOptions = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendTestEmail>>, TError,SendTestEmailMutationVariables, TContext>, }
+): UseMutationOptions<Awaited<ReturnType<typeof sendTestEmail>>, TError,SendTestEmailMutationVariables, TContext> => {
+
+const mutationKey = getSendTestEmailMutationKey();
+const {mutation: mutationOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof sendTestEmail>>, SendTestEmailMutationVariables> = (props) => {
+          const {id,data} = props ?? {};
+
+          return  sendTestEmail(id,data,)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type SendTestEmailMutationResult = NonNullable<Awaited<ReturnType<typeof sendTestEmail>>>
+    export type SendTestEmailMutationBody = TestEmailRequest
+    export type SendTestEmailMutationError = unknown
+    export type SendTestEmailMutationVariables = {id: string;data: TestEmailRequest}
+
+    export const useSendTestEmail = <TError = unknown,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof sendTestEmail>>, TError,SendTestEmailMutationVariables, TContext>, }
+ , queryClient?: QueryClient): UseMutationResult<
+        Awaited<ReturnType<typeof sendTestEmail>>,
+        TError,
+        SendTestEmailMutationVariables,
+        TContext
+      > => {
+      return useMutation(getSendTestEmailMutationOptions(options), queryClient);
+    }

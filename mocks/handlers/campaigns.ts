@@ -226,14 +226,16 @@ function startSimulation(id: string, recipientCount: number, confirmedAt: number
 
 export function resumeSimulations(): void {
   for (const [id, campaign] of store.entries()) {
-    if (
-      (campaign.status === "RESOLVING" || campaign.status === "SENDING") &&
-      !sims.has(id)
-    ) {
+    if (sims.has(id)) continue;
+    if (campaign.status === "RESOLVING" || campaign.status === "SENDING") {
       const recipientCount = campaign.recipientCount ?? 100;
       const progress = recipientCount > 0 ? Math.min((campaign.sentCount ?? 0) / recipientCount, 1) : 0;
       const sendElapsed = progress * SEND_MS;
       startSimulation(id, recipientCount, Date.now() - RESOLVE_MS - sendElapsed, false);
+    } else if (campaign.status === "SENT" || campaign.status === "PARTIALLY_FAILED") {
+      const recipientCount = campaign.recipientCount ?? 0;
+      const sentAt = campaign.sentAt ? new Date(campaign.sentAt) : new Date();
+      seedTerminalSimulation(id, recipientCount, sentAt, campaign.status);
     }
   }
 }
@@ -650,5 +652,12 @@ export const campaignHandlers = [
     const id = params.id as string;
     const count = estimatePreviewCount(filtersStore.get(id) ?? []);
     return HttpResponse.json({ recipientCount: count });
+  }),
+
+  http.post("*/api/v1/campaigns/:id/test/send", async ({ params }) => {
+    await delay(800);
+    const id = params.id as string;
+    if (!store.has(id)) return new HttpResponse(null, { status: 404 });
+    return new HttpResponse(null, { status: 202 });
   }),
 ];
