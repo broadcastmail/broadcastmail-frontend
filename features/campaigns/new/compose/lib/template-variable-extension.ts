@@ -15,8 +15,8 @@ export function createTemplateVariableExtension(getValidColumns: () => Set<strin
   return Extension.create({
     name: "templateVariableHighlight",
 
-    addProseMirrorPlugin() {
-      return new Plugin({
+    addProseMirrorPlugins() {
+      return [new Plugin({
         key: new PluginKey("templateVariableHighlight"),
         props: {
           decorations(state) {
@@ -41,7 +41,7 @@ export function createTemplateVariableExtension(getValidColumns: () => Set<strin
             return DecorationSet.create(state.doc, decos);
           },
         },
-      });
+      })];
     },
   });
 }
