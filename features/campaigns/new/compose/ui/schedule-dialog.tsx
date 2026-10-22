@@ -192,6 +192,8 @@ export function ScheduleDialog({
     onSchedule(toUtcIso(date, hour, minute, tz));
   }
 
+  const isUpdate = !!initialScheduledAt;
+
   let confirmLabel = isUpdate ? "Update schedule" : "Schedule send";
   if (confirming) confirmLabel = "Scheduling…";
 
@@ -199,8 +201,6 @@ export function ScheduleDialog({
     if (confirming) return;
     onOpenChange(value);
   }
-
-  const isUpdate = !!initialScheduledAt;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>

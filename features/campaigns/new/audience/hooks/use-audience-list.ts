@@ -1,6 +1,6 @@
 "use client";
 
-import {useLayoutEffect, useRef, useState} from "react";
+import {startTransition, useLayoutEffect, useRef, useState} from "react";
 import {keepPreviousData, useInfiniteQuery, useQueryClient} from "@tanstack/react-query";
 import {listAudience} from "@/lib/api/generated/campaigns/campaigns";
 import type {AudienceListResponse, AudienceRecipient} from "@/lib/api/generated/openAPIDefinition.schemas";
@@ -39,19 +39,22 @@ export function useAudienceList({
   const queryClient = useQueryClient();
   const queryKey = audienceListKey(filterPayloads, sort);
   const queryKeyStr = JSON.stringify({ f: filterPayloads, s: sort });
-  const lastIdleKeyRef = useRef(queryKeyStr);
 
-  const seededRef = useRef(false);
+  const seededRef = useRef<true | null>(null);
+  if (seededRef.current == null) {
+    seededRef.current = true;
+    queryClient.setQueryData(queryKey, { pages: [initialPage], pageParams: [undefined] });
+  }
+
   const prevQueryKeyStrRef = useRef(queryKeyStr);
   const fetchStartRef = useRef<number | null>(null);
   const fetchWasRealRef = useRef(false);
   const loadTimesRef = useRef(new Map<string, number>());
+
+  const [lastIdleKey, setLastIdleKey] = useState(queryKeyStr);
   const [loadTimeMs, setLoadTimeMs] = useState<number | null>(null);
 
-  if (!seededRef.current) {
-    seededRef.current = true;
-    queryClient.setQueryData(queryKey, { pages: [initialPage], pageParams: [undefined] });
-  }
+  const reloading = queryKeyStr !== lastIdleKey;
 
   const { data, isFetching, isFetchingNextPage, fetchNextPage } = useInfiniteQuery({
     queryKey,
@@ -78,24 +81,16 @@ export function useAudienceList({
     }),
   });
 
-  if (!isFetching) lastIdleKeyRef.current = queryKeyStr;
-  const reloading = queryKeyStr !== lastIdleKeyRef.current;
-
-  // Record initial SSR load time once, after mount
+  // Track per-filter load times and reloading state
   useLayoutEffect(() => {
-    const t = Math.round(performance.now());
-    loadTimesRef.current.set(queryKeyStr, t);
-    setLoadTimeMs(t);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!isFetching) startTransition(() => setLastIdleKey(queryKeyStr));
 
-  // Track per-filter load times; fires whenever queryKeyStr or isFetching changes
-  useLayoutEffect(() => {
     const keyChanged = queryKeyStr !== prevQueryKeyStrRef.current;
     prevQueryKeyStrRef.current = queryKeyStr;
 
     if (keyChanged) {
       fetchWasRealRef.current = false;
-      setLoadTimeMs(loadTimesRef.current.get(queryKeyStr) ?? null);
+      startTransition(() => setLoadTimeMs(loadTimesRef.current.get(queryKeyStr) ?? null));
       fetchStartRef.current = isFetching ? Date.now() : null;
     }
 
@@ -106,11 +101,11 @@ export function useAudienceList({
     if (!isFetching && fetchStartRef.current !== null && fetchWasRealRef.current) {
       const elapsed = Date.now() - fetchStartRef.current;
       loadTimesRef.current.set(queryKeyStr, elapsed);
-      setLoadTimeMs(elapsed);
+      startTransition(() => setLoadTimeMs(elapsed));
       fetchStartRef.current = null;
       fetchWasRealRef.current = false;
     }
-  }, [queryKeyStr, isFetching]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [queryKeyStr, isFetching]);
 
   const recipients = data?.recipients ?? [];
 
