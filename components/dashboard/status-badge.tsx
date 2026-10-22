@@ -4,6 +4,7 @@ import type {CampaignStatus} from "@/lib/types/campaigns";
 
 interface StatusBadgeProps {
   status: CampaignStatus;
+  scheduledAt?: string | null;
 }
 
 const statusConfig: Record<
@@ -46,8 +47,14 @@ const statusConfig: Record<
   },
 };
 
-export function StatusBadge({ status }: Readonly<StatusBadgeProps>) {
-  const config = statusConfig[status];
+const scheduledConfig = {
+  label: "Scheduled",
+  className: "bg-status-scheduled-bg text-status-scheduled",
+  animate: false,
+};
+
+export function StatusBadge({ status, scheduledAt }: Readonly<StatusBadgeProps>) {
+  const config = status === "DRAFT" && scheduledAt ? scheduledConfig : statusConfig[status];
 
   return (
     <span

@@ -1,6 +1,6 @@
 "use client";
 
-import {useLayoutEffect, useRef, useState} from "react";
+import {useState} from "react";
 import {useAudienceFilterEditor} from "./use-audience-filter-editor";
 import {useAudienceTable} from "./use-audience-table";
 import {updateCampaign} from "@/lib/api/generated/campaigns/campaigns";
@@ -32,14 +32,11 @@ export function useAudienceStepMediator(data: CampaignData, onConfirm: (count: n
   const { saving: isSaving, error: saveError, run: withSave } = useSaveState();
   const [lastConfirmedMode, setLastConfirmedMode] = useState<AudienceMode | null>(initialAudienceMode);
 
-  const listReloadRef = useRef<() => void>(() => {});
-
   const filterEditor = useAudienceFilterEditor({
     campaignId,
     audienceColumns: columns,
     initialFilters,
     initialRecipientCount,
-    onFiltersApplied: () => listReloadRef.current(),
   });
 
   const { list, selection } = useAudienceTable({
@@ -49,8 +46,6 @@ export function useAudienceStepMediator(data: CampaignData, onConfirm: (count: n
     initialIncludedIds,
     initialExcludedIds,
   });
-
-  useLayoutEffect(() => { listReloadRef.current = list.reload; });
 
   async function handleSave() {
     selection.commitFilters();

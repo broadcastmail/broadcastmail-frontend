@@ -52,6 +52,7 @@ export function AudienceStep({ data, onWriteFirst, onConfirm }: Readonly<Audienc
           loadedCount={list.loadedCount}
           total={list.total}
           loading={list.loading}
+          reloading={list.reloading}
           hasMore={list.hasMore}
           allRecipientsSelected={selection.allRecipientsSelected}
           noRecipientsSelected={selection.noRecipientsSelected}
@@ -69,6 +70,12 @@ export function AudienceStep({ data, onWriteFirst, onConfirm }: Readonly<Audienc
         columns={columns}
         filters={filterEditor.filters}
         filterError={filterEditor.filterError}
+        totalRecipients={totalRecipients}
+        filteredCount={filterEditor.recipientCount}
+        loadTimeMs={list.loadTimeMs}
+        selectionMode={selection.mode}
+        includedIds={selection.includedIds}
+        excludedIds={selection.excludedIds}
         onAdd={filterEditor.addFilter}
         onPatch={filterEditor.patchFilter}
         onRemove={filterEditor.removeFilter}

@@ -32,6 +32,7 @@ export interface Campaign {
   openedCount: number;
   bouncedCount: number;
   failedCount: number;
+  scheduledAt: string | null;
   sentAt: string | null;
   createdAt: string;
   filters: CampaignFilterResponse[];

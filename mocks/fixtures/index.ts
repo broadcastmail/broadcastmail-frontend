@@ -21,6 +21,7 @@ export const fakeCampaign = (overrides?: Partial<Campaign>): Campaign => {
     openedCount: hasRecipients ? faker.number.int({ min: 0, max: 200 }) : 0,
     bouncedCount: hasRecipients ? faker.number.int({ min: 0, max: 8 }) : 0,
     failedCount: hasRecipients ? faker.number.int({ min: 0, max: 10 }) : 0,
+    scheduledAt: null,
     sentAt: hasRecipients
       ? faker.date.recent({ days: 30 }).toISOString()
       : null,

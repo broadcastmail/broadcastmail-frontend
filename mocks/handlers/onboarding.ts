@@ -88,9 +88,12 @@ export function currentSchema(request: Request) {
     };
   }
 
-  const raw = getCookie(request, ONBOARDING_COLUMNS_COOKIE);
-  const enabled = new Set(raw !== null ? raw.split(",").filter(Boolean) : []);
   const [meta, columns] = selectedTable(request);
+  const raw = getCookie(request, ONBOARDING_COLUMNS_COOKIE);
+  // null cookie = not yet customised → all columns on by default
+  const enabled = raw !== null
+    ? new Set(raw.split(",").filter(Boolean))
+    : new Set(columns.map((c) => c.columnName));
   return detected(meta, columns, enabled);
 }
 

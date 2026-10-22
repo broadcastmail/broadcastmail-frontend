@@ -23,6 +23,7 @@ function toDisplayCampaign(c: CampaignSummaryResponse): Campaign {
     openedCount: 0,
     bouncedCount: 0,
     failedCount: 0,
+    scheduledAt: c.scheduledAt ?? null,
     sentAt: c.sentAt ?? null,
     createdAt: c.createdAt ?? '',
     filters: [],

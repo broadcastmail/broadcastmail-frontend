@@ -17,12 +17,13 @@ interface AudienceStepFooterProps {
 }
 
 export function AudienceStepFooter({
-    initialAudienceMode, isSaving, saveError,
+    initialAudienceMode, selectedCount, isSaving, saveError,
     hasPendingFilterChange, canSave,
     onWriteFirst, onSave, onKeepSelection, onClearSelection,
 }: Readonly<AudienceStepFooterProps>) {
     let saveLabel: ReactNode = "Save audience";
     if (isSaving) saveLabel = "Saving…";
+    else if (initialAudienceMode === null && selectedCount === 0) saveLabel = "Select recipients";
     else if (initialAudienceMode === null) saveLabel = <>Continue to compose <span>→</span></>;
 
     return (
