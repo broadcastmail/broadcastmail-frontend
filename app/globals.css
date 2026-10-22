@@ -19,8 +19,22 @@
   --color-status-sent-bg: rgba(74, 222, 128, 0.11);
   --color-status-failed-bg: rgba(229, 114, 106, 0.14);
   --color-status-draft-bg: rgba(255, 255, 255, 0.06);
+  --color-status-scheduled: #6aa3f7;
+  --color-status-scheduled-bg: rgba(106, 163, 247, 0.13);
   --color-card: rgba(255, 255, 255, 0.035);
   --color-dialog: #111116;
+  /* shadcn component tokens */
+  --color-primary: #f0973f;
+  --color-primary-foreground: #120c06;
+  --color-muted: rgba(255, 255, 255, 0.08);
+  --color-muted-foreground: #5c5c66;
+  --color-accent: rgba(255, 255, 255, 0.08);
+  --color-accent-foreground: #ececf1;
+  --color-popover: #111116;
+  --color-popover-foreground: #ececf1;
+  --color-foreground: #ececf1;
+  --color-ring: #f0973f;
+  --radius-md: 6px;
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 

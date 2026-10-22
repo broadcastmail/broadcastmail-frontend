@@ -18,8 +18,11 @@ import {useBeforeUnloadWarning} from "@/lib/navigation/use-before-unload-warning
 import {UNSAVED_CHANGES_MESSAGE} from "@/lib/navigation/unsaved-changes-guard";
 import {campaignNameSchema} from "@/lib/schemas/campaigns";
 import {cn} from "@/lib/utils";
-import {useSendTestEmail} from "@/lib/api/generated/campaigns/campaigns";
+import {updateCampaign, useSendTestEmail} from "@/lib/api/generated/campaigns/campaigns";
 import {toast} from "sonner";
+import {useRouter} from "next/navigation";
+import {ScheduleDialog} from "./schedule-dialog";
+import {updateSessionDraft} from "@/features/campaigns/shared/session-drafts";
 
 export interface SendContext {
   saveNow: () => Promise<void>;
@@ -95,6 +98,10 @@ export function ComposeStep({
     }
   }
 
+  const router = useRouter();
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduling, setScheduling] = useState(false);
+
   const { mutate: sendTestEmail, isPending: sendingTest } = useSendTestEmail();
 
   async function handleSendTest() {
@@ -106,6 +113,21 @@ export function ComposeStep({
         onError: () => toast.error("Failed to send test email"),
       },
     );
+  }
+
+  async function handleScheduleConfirm(scheduledAt: string) {
+    if (scheduling) return;
+    setScheduling(true);
+    try {
+      await saveNow();
+      await updateCampaign(campaign.id, { scheduledAt });
+      updateSessionDraft(campaign.id, { name: draft.name, subject: draft.subject, status: "DRAFT" });
+      router.push("/dashboard");
+    } catch (err) {
+      console.error(`Failed to schedule campaign ${campaign.id}`, err);
+      toast.error("Failed to schedule — try again.");
+      setScheduling(false);
+    }
   }
 
   function handleBack() {
@@ -191,11 +213,20 @@ export function ComposeStep({
         saving={saving}
         saved={saved}
         sending={sending}
+        scheduling={scheduling}
         canSend={sendEnabled}
         resendConfigured={resendConfigured}
         onAudience={handleBack}
         onSave={handleSave}
         onSend={handleSend}
+        onSchedule={() => setScheduleOpen(true)}
+      />
+      <ScheduleDialog
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        initialScheduledAt={campaign.scheduledAt ?? null}
+        confirming={scheduling}
+        onSchedule={handleScheduleConfirm}
       />
     </>
   );

@@ -17,6 +17,7 @@ interface AudienceRecipientTableProps {
     loadedCount: number;
     total: number;
     loading: boolean;
+    reloading: boolean;
     hasMore: boolean;
     allRecipientsSelected: boolean;
     noRecipientsSelected: boolean;
@@ -31,7 +32,7 @@ interface AudienceRecipientTableProps {
 }
 
 export function AudienceRecipientTable({
-    recipients, loadedCount, total, loading, hasMore,
+    recipients, loadedCount, total, loading, reloading, hasMore,
     allRecipientsSelected, noRecipientsSelected, limitExceeded,
     sort, filterColumns, isSelected, onToggle, onToggleAll, onSort, onLoadMore,
 }: Readonly<AudienceRecipientTableProps>) {
@@ -55,49 +56,57 @@ export function AudienceRecipientTable({
                         <SortHeader className="w-28 shrink-0" key={col.key} label={col.name} active={sort.key === col.name} direction={sort.direction} onClick={() => onSort(col.name)} />
                     ))}
                 </div>
-                {recipients.map((recipient) => {
-                    const id = recipient.id ?? "";
-                    const email = recipient.email ?? "";
-                    const attrs = recipient.attributes ?? {};
-                    return (
-                    <div key={id} className="flex min-w-max gap-3 items-center px-4 py-2 border-b border-white/[0.045] hover:bg-white/[0.035]">
-                        <Checkbox
-                            checked={isSelected(id)}
-                            disabled={limitExceeded && !isSelected(id)}
-                            onCheckedChange={(checked) => onToggle(id, checked === true)}
-                            aria-label={`Include ${email}`}
-                            className="size-4 rounded-[4px] border border-[#3A3A46] text-[#120C06] data-[state=checked]:bg-orange data-[state=checked]:border-orange disabled:opacity-40 disabled:cursor-not-allowed"
-                        />
-                        <div className="flex-1 min-w-[200px] flex items-center gap-2.5">
-                            <span className="w-6 h-6 rounded-full bg-orange/14 text-orange flex items-center justify-center text-[10px] font-semibold shrink-0">
-                                {(email[0] ?? "?").toUpperCase()}
-                            </span>
-                            <span className="font-mono text-[12.5px] text-[#CBCBD4] truncate">{email}</span>
-                        </div>
-                        <span className="w-32 shrink-0 font-mono text-[12px] text-[#7A7A85] truncate">
-                            {formatAudienceDate(attrs.created_at as string | number | boolean | null | undefined)}
-                        </span>
-                        {filterColumns.map((col) => (
-                            <div key={col.key} className="w-28 shrink-0 truncate font-mono text-[12px]">
-                                {col.name === "plan" ? (
-                                    <span className={`inline-flex max-w-full px-2 py-0.5 rounded ${audiencePillClass(
-                                        attrStr(attrs[col.name]),
-                                        recipients.map((r) => attrStr(r.attributes?.[col.name])),
-                                    )}`}>
-                                        {attrStr(attrs[col.name], "—")}
-                                    </span>
-                                ) : (
-                                    <span className="text-[#7A7A85]">{attrStr(attrs[col.name], "—")}</span>
-                                )}
-                            </div>
-                        ))}
+                {reloading ? (
+                    <div className="py-9 flex items-center justify-center">
+                        <span className="w-5 h-5 rounded-full border-2 border-[#26262F] border-t-orange animate-bmspin" />
                     </div>
-                    );
-                })}
-                {!loading && recipients.length === 0 && (
-                    <div className="py-9 text-center text-[13px] text-[#5C5C66]">No users match these filters.</div>
+                ) : (
+                    <>
+                        {recipients.map((recipient) => {
+                            const id = recipient.id ?? "";
+                            const email = recipient.email ?? "";
+                            const attrs = recipient.attributes ?? {};
+                            return (
+                            <div key={id} className="flex min-w-max gap-3 items-center px-4 py-2 border-b border-white/[0.045] hover:bg-white/[0.035]">
+                                <Checkbox
+                                    checked={isSelected(id)}
+                                    disabled={limitExceeded && !isSelected(id)}
+                                    onCheckedChange={(checked) => onToggle(id, checked === true)}
+                                    aria-label={`Include ${email}`}
+                                    className="size-4 rounded-[4px] border border-[#3A3A46] text-[#120C06] data-[state=checked]:bg-orange data-[state=checked]:border-orange disabled:opacity-40 disabled:cursor-not-allowed"
+                                />
+                                <div className="flex-1 min-w-[200px] flex items-center gap-2.5">
+                                    <span className="w-6 h-6 rounded-full bg-orange/14 text-orange flex items-center justify-center text-[10px] font-semibold shrink-0">
+                                        {(email[0] ?? "?").toUpperCase()}
+                                    </span>
+                                    <span className="font-mono text-[12.5px] text-[#CBCBD4] truncate">{email}</span>
+                                </div>
+                                <span className="w-32 shrink-0 font-mono text-[12px] text-[#7A7A85] truncate">
+                                    {formatAudienceDate(attrs.created_at as string | number | boolean | null | undefined)}
+                                </span>
+                                {filterColumns.map((col) => (
+                                    <div key={col.key} className="w-28 shrink-0 truncate font-mono text-[12px]">
+                                        {col.name === "plan" ? (
+                                            <span className={`inline-flex max-w-full px-2 py-0.5 rounded ${audiencePillClass(
+                                                attrStr(attrs[col.name]),
+                                                recipients.map((r) => attrStr(r.attributes?.[col.name])),
+                                            )}`}>
+                                                {attrStr(attrs[col.name], "—")}
+                                            </span>
+                                        ) : (
+                                            <span className="text-[#7A7A85]">{attrStr(attrs[col.name], "—")}</span>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                            );
+                        })}
+                        {recipients.length === 0 && (
+                            <div className="py-9 text-center text-[13px] text-[#5C5C66]">No users match these filters.</div>
+                        )}
+                    </>
                 )}
-                {hasMore && (
+                {!reloading && hasMore && (
                     <button
                         type="button"
                         onClick={onLoadMore}

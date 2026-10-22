@@ -52,6 +52,7 @@ export function CampaignDetail({ initialCampaign, resendConfigured }: Readonly<C
         openedCount: data.openedCount,
         bouncedCount: data.bouncedCount,
         failedCount: data.failedCount,
+        scheduledAt: data.scheduledAt ?? null,
         sentAt: data.sentAt ?? null,
         createdAt: data.createdAt,
         filters: data.filters as Campaign["filters"],

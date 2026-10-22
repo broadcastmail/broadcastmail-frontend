@@ -49,7 +49,6 @@ function useRecipientCount(
   initialCount: number,
   filtersRef: RefObject<AudienceFilter[]>,
   columnsRef: RefObject<AudienceColumn[]>,
-  onAppliedRef: RefObject<(() => void) | undefined>,
 ) {
   const [counting, setCounting] = useState(false);
   const [recipientCount, setRecipientCount] = useState(initialCount);
@@ -58,16 +57,11 @@ function useRecipientCount(
 
   async function run(requestId: number) {
     if (filtersRef.current.some((f) => !f.value.trim())) { setCounting(false); return; }
-    try {
-      const page = await listAudience(toFilterPayloads(filtersRef.current, columnsRef.current), { limit: 1 });
-      if (requestId !== requestRef.current) return;
-      setRecipientCount(page.total ?? 0);
-      onAppliedRef.current?.();
-    } catch {
-      toast.error("Couldn't update recipient count — try again.");
-    } finally {
-      if (requestId === requestRef.current) setCounting(false);
-    }
+    const page = await listAudience(toFilterPayloads(filtersRef.current, columnsRef.current), { limit: 1 })
+      .catch(() => { toast.error("Couldn't update recipient count — try again."); return null; });
+    if (requestId !== requestRef.current) return;
+    if (page) setRecipientCount(page.total ?? 0);
+    setCounting(false);
   }
 
   function trigger() {
@@ -83,7 +77,6 @@ interface UseAudienceFilterEditorOptions {
   audienceColumns: AudienceColumn[];
   initialFilters: CampaignFilterResponse[];
   initialRecipientCount: number;
-  onFiltersApplied?: () => void;
 }
 
 export interface FilterColumn { key: string; name: string }
@@ -104,21 +97,23 @@ export function useAudienceFilterEditor({
   audienceColumns,
   initialFilters,
   initialRecipientCount,
-  onFiltersApplied,
 }: UseAudienceFilterEditorOptions): AudienceFilterEditor {
-  const [filters, setFilters] = useState(() => fromFilterResponses(initialFilters, nextFilterId));
+  const [filters, setFilters] = useState(() => {
+    if (initialFilters.length > 0) return fromFilterResponses(initialFilters, nextFilterId);
+    const candidate = findNextFilterCandidate(audienceColumns, new Set());
+    if (!candidate) return [];
+    return [{ id: nextFilterId(), ...candidate }];
+  });
   const [filterError, setFilterError] = useState<string | null>(null);
 
   const filtersRef = useRef(filters);
   const columnsRef = useRef(audienceColumns);
-  const onAppliedRef = useRef(onFiltersApplied);
 
   useLayoutEffect(() => { filtersRef.current = filters; });
   useLayoutEffect(() => { columnsRef.current = audienceColumns; });
-  useLayoutEffect(() => { onAppliedRef.current = onFiltersApplied; });
 
   const { counting, recipientCount, trigger: recount } = useRecipientCount(
-    initialRecipientCount, filtersRef, columnsRef, onAppliedRef,
+    initialRecipientCount, filtersRef, columnsRef,
   );
 
   function addFilter(): AudienceFilter | null {

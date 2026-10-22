@@ -5,13 +5,25 @@ import {useRouter} from "next/navigation";
 import {StatusBadge} from "@/components/dashboard/status-badge";
 import {Campaign} from "@/lib/types/campaigns";
 import {TableCell, TableRow} from "@/components/ui/table";
-import {format, isToday, isYesterday} from "date-fns";
+import {format, isThisYear, isToday, isYesterday} from "date-fns";
 import {Trash2} from "lucide-react";
 import {DeleteCampaignDialog} from "./delete-campaign-dialog";
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,} from "@/components/ui/dropdown-menu";
 
 interface CampaignRowProps {
   campaign: Campaign;
+}
+
+function formatScheduledDate(scheduledAt: string): string {
+  const date = new Date(scheduledAt);
+  if (isThisYear(date)) return format(date, "MMM d, HH:mm");
+  return format(date, "MMM d yyyy");
+}
+
+function campaignDate(campaign: Campaign): string {
+  if (campaign.sentAt) return formatSentDate(campaign.sentAt);
+  if (campaign.scheduledAt) return formatScheduledDate(campaign.scheduledAt);
+  return "—";
 }
 
 function formatSentDate(sentAt: string): string {
@@ -58,7 +70,7 @@ export function CampaignRow({ campaign }: Readonly<CampaignRowProps>) {
           </div>
         </TableCell>
         <TableCell className="py-3 px-4.5 w-24">
-          <StatusBadge status={campaign.status} />
+          <StatusBadge status={campaign.status} scheduledAt={campaign.scheduledAt} />
         </TableCell>
         <TableCell className="py-3 px-4.5 font-mono text-[13px] text-text-muted tabular-nums text-right w-19">
           {campaign.recipientCount?.toLocaleString() ?? "—"}
@@ -69,7 +81,7 @@ export function CampaignRow({ campaign }: Readonly<CampaignRowProps>) {
             : "—"}
         </TableCell>
         <TableCell className="py-3 px-4.5 font-mono text-[12.5px] text-text-dim tabular-nums text-right w-19">
-          {campaign.sentAt ? formatSentDate(campaign.sentAt) : "—"}
+          {campaignDate(campaign)}
         </TableCell>
         <TableCell className="w-8 px-2">
           <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
