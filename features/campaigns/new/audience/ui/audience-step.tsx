@@ -70,7 +70,6 @@ export function AudienceStep({ data, onWriteFirst, onConfirm }: Readonly<Audienc
         columns={columns}
         filters={filterEditor.filters}
         filterError={filterEditor.filterError}
-        totalRecipients={totalRecipients}
         filteredCount={filterEditor.recipientCount}
         loadTimeMs={list.loadTimeMs}
         selectionMode={selection.mode}

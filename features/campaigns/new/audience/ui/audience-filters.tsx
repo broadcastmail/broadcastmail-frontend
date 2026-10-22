@@ -15,7 +15,6 @@ interface AudienceFiltersProps {
   columns: AudienceColumn[];
   filters: AudienceFilter[];
   filterError: string | null;
-  totalRecipients?: number;
   filteredCount?: number;
   loadTimeMs?: number | null;
   selectionMode?: "all" | "none";
@@ -37,7 +36,6 @@ export function AudienceFilters({
   columns,
   filters,
   filterError,
-  totalRecipients,
   filteredCount,
   loadTimeMs,
   selectionMode = "all",

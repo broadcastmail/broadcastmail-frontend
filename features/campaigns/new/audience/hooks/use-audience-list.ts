@@ -1,6 +1,6 @@
 "use client";
 
-import {useRef, useState} from "react";
+import {useLayoutEffect, useRef, useState} from "react";
 import {keepPreviousData, useInfiniteQuery, useQueryClient} from "@tanstack/react-query";
 import {listAudience} from "@/lib/api/generated/campaigns/campaigns";
 import type {AudienceListResponse, AudienceRecipient} from "@/lib/api/generated/openAPIDefinition.schemas";
@@ -41,17 +41,16 @@ export function useAudienceList({
   const queryKeyStr = JSON.stringify({ f: filterPayloads, s: sort });
   const lastIdleKeyRef = useRef(queryKeyStr);
 
-  // Seed only the initial key's cache — not every key the hook ever sees
   const seededRef = useRef(false);
   const prevQueryKeyStrRef = useRef(queryKeyStr);
   const fetchStartRef = useRef<number | null>(null);
   const fetchWasRealRef = useRef(false);
   const loadTimesRef = useRef(new Map<string, number>());
+  const [loadTimeMs, setLoadTimeMs] = useState<number | null>(null);
 
   if (!seededRef.current) {
     seededRef.current = true;
     queryClient.setQueryData(queryKey, { pages: [initialPage], pageParams: [undefined] });
-    loadTimesRef.current.set(queryKeyStr, Math.round(performance.now()));
   }
 
   const { data, isFetching, isFetchingNextPage, fetchNextPage } = useInfiniteQuery({
@@ -80,23 +79,38 @@ export function useAudienceList({
   });
 
   if (!isFetching) lastIdleKeyRef.current = queryKeyStr;
-
   const reloading = queryKeyStr !== lastIdleKeyRef.current;
 
-  if (queryKeyStr !== prevQueryKeyStrRef.current) {
+  // Record initial SSR load time once, after mount
+  useLayoutEffect(() => {
+    const t = Math.round(performance.now());
+    loadTimesRef.current.set(queryKeyStr, t);
+    setLoadTimeMs(t);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Track per-filter load times; fires whenever queryKeyStr or isFetching changes
+  useLayoutEffect(() => {
+    const keyChanged = queryKeyStr !== prevQueryKeyStrRef.current;
     prevQueryKeyStrRef.current = queryKeyStr;
-    fetchStartRef.current = Date.now();
-    fetchWasRealRef.current = false;
-  }
-  if (isFetching && fetchStartRef.current !== null) {
-    fetchWasRealRef.current = true;
-  }
-  if (!isFetching && fetchStartRef.current !== null) {
-    if (fetchWasRealRef.current) {
-      loadTimesRef.current.set(queryKeyStr, Date.now() - fetchStartRef.current);
+
+    if (keyChanged) {
+      fetchWasRealRef.current = false;
+      setLoadTimeMs(loadTimesRef.current.get(queryKeyStr) ?? null);
+      fetchStartRef.current = isFetching ? Date.now() : null;
     }
-    fetchStartRef.current = null;
-  }
+
+    if (isFetching && fetchStartRef.current !== null) {
+      fetchWasRealRef.current = true;
+    }
+
+    if (!isFetching && fetchStartRef.current !== null && fetchWasRealRef.current) {
+      const elapsed = Date.now() - fetchStartRef.current;
+      loadTimesRef.current.set(queryKeyStr, elapsed);
+      setLoadTimeMs(elapsed);
+      fetchStartRef.current = null;
+      fetchWasRealRef.current = false;
+    }
+  }, [queryKeyStr, isFetching]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const recipients = data?.recipients ?? [];
 
@@ -113,7 +127,7 @@ export function useAudienceList({
     total: data?.total ?? 0,
     loading: isFetchingNextPage,
     reloading,
-    loadTimeMs: loadTimesRef.current.get(queryKeyStr) ?? null,
+    loadTimeMs,
     hasMore: data?.hasMore ?? false,
     sort,
     loadMore: () => { void fetchNextPage(); },
